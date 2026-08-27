@@ -1,0 +1,32 @@
+cat > .gitignore <<'EOF'
+# Dependencies
+node_modules/
+
+# Angular
+client/dist/
+client/.angular/
+
+# Node build
+server/dist/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Logs
+*.log
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+EOF
