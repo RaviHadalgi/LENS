@@ -8,11 +8,24 @@ import { LensBadge } from '../../../../shared/components/lens-badge/lens-badge';
 import { LensFormField } from '../../../../shared/components/lens-form-field/lens-form-field';
 import { LensButton } from '../../../../shared/components/lens-button/lens-button';
 import { LensApiService } from '../../../../core/services/lens-api.service';
-import type { SourceType, AnalyzeSourceResponse } from '../../../../core/services/lens-api.service';
 
-type AddSourceStep = 'input' | 'analyzing' | 'error' | 'profile' | 'editing' | 'processing';
+import type {
+  SourceType,
+  AnalyzeSourceResponse,
+  YouTubeSyncResponse,
+} from '../../../../core/services/lens-api.service';
 
-type IdentityStatus = 'high-confidence' | 'needs-review';
+type AddSourceStep =
+  | 'input'
+  | 'analyzing'
+  | 'error'
+  | 'profile'
+  | 'editing'
+  | 'processing';
+
+type IdentityStatus =
+  | 'high-confidence'
+  | 'needs-review';
 
 interface Source {
   name: string;
@@ -45,7 +58,14 @@ interface CreatorProfile {
 
 @Component({
   selector: 'app-sources-page',
-  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard],
+  imports: [
+    FormsModule,
+    LensModal,
+    LensButton,
+    LensFormField,
+    LensBadge,
+    LensCard,
+  ],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.css',
 })
@@ -57,10 +77,19 @@ export class SourcesPage {
   sourceUrl = '';
 
   addSourceStep: AddSourceStep = 'input';
+
   analysisError = '';
+
   private readonly api = inject(LensApiService);
-  private readonly changeDetector = inject(ChangeDetectorRef);
-  selectedBackfill: 'recent' | 'playlists' | 'all' | 'selected' = 'recent';
+
+  private readonly changeDetector =
+    inject(ChangeDetectorRef);
+
+  selectedBackfill:
+    | 'recent'
+    | 'playlists'
+    | 'all'
+    | 'selected' = 'recent';
 
   creatorProfile: CreatorProfile | null = null;
 
@@ -141,18 +170,27 @@ export class SourcesPage {
   openAddSource(): void {
     this.showAddSource = true;
     this.addSourceStep = 'input';
+
     this.sourceUrl = '';
+
     this.creatorProfile = null;
+
     this.analysisError = '';
+
     this.selectedType = 'channel';
+
     this.selectedBackfill = 'recent';
   }
 
   closeAddSource(): void {
     this.showAddSource = false;
+
     this.sourceUrl = '';
+
     this.creatorProfile = null;
+
     this.analysisError = '';
+
     this.addSourceStep = 'input';
   }
 
@@ -160,7 +198,13 @@ export class SourcesPage {
     this.selectedType = type;
   }
 
-  selectBackfill(option: 'recent' | 'playlists' | 'all' | 'selected'): void {
+  selectBackfill(
+    option:
+      | 'recent'
+      | 'playlists'
+      | 'all'
+      | 'selected',
+  ): void {
     this.selectedBackfill = option;
   }
 
@@ -172,60 +216,292 @@ export class SourcesPage {
     }
 
     this.addSourceStep = 'analyzing';
+
     this.analysisError = '';
 
-    this.api.analyzeSource(url).pipe(timeout(10_000)).subscribe({
-      next: (result) => {
-        this.handleSourceAnalysis(result);
-      },
+    this.api
+      .analyzeSource(url)
+      .pipe(timeout(10_000))
+      .subscribe({
+        next: (result) => {
+          this.handleSourceAnalysis(result);
+        },
 
-      error: (error) => {
-        console.error('Source analysis failed:', error);
-        this.analysisError =
-          'LENS did not receive a usable response. Confirm the server is running, then try again.';
-        this.addSourceStep = 'error';
-        this.changeDetector.detectChanges();
-      },
-    });
+        error: (error) => {
+          console.error(
+            'Source analysis failed:',
+            error,
+          );
+
+          this.analysisError =
+            'LENS did not receive a usable response. Confirm the server is running, then try again.';
+
+          this.addSourceStep = 'error';
+
+          this.changeDetector.detectChanges();
+        },
+      });
   }
 
-  private handleSourceAnalysis(result: AnalyzeSourceResponse): void {
+  private handleSourceAnalysis(
+    result: AnalyzeSourceResponse,
+  ): void {
     if (result.status !== 'detected') {
-      console.warn('Source could not be detected:', result);
+      console.warn(
+        'Source could not be detected:',
+        result,
+      );
 
       this.analysisError =
         result.status === 'unsupported'
           ? 'This source is not supported yet. Use a YouTube channel, playlist, or video URL.'
           : 'Enter a complete, valid source URL and try again.';
+
       this.addSourceStep = 'error';
+
       this.changeDetector.detectChanges();
+
       return;
     }
 
     /*
-     * Keep the source type returned by the backend.
-     * This becomes important once the user pastes a URL
-     * without manually selecting Video/Playlist/Channel.
+     * Always trust the backend's detected source type.
      */
-    if (result.type === 'channel' || result.type === 'playlist' || result.type === 'video') {
+    if (
+      result.type === 'channel' ||
+      result.type === 'playlist' ||
+      result.type === 'video'
+    ) {
       this.selectedType = result.type;
     }
 
     /*
-     * Temporary profile creation remains here.
+     * YouTube channels require one additional step.
      *
-     * Later this will be replaced by:
-     * backend identity resolution →
-     * creator profile response.
+     * /sources/analyze:
+     *   detects @OpenAI
+     *
+     * /sources/youtube/sync:
+     *   resolves @OpenAI
+     *   -> UCXZCJLdBC09xxGZ6gcdrc6A
+     *
+     * The successful sync result is then used to
+     * build the creator profile shown to the user.
      */
-    this.creatorProfile = this.buildDraftCreatorProfile(result);
+    if (
+      result.platform === 'youtube' &&
+      result.type === 'channel'
+    ) {
+      this.addSourceStep = 'analyzing';
+
+      this.changeDetector.detectChanges();
+
+      this.api
+        .syncYouTubeChannel(result.url)
+        .pipe(timeout(10_000))
+        .subscribe({
+          next: (syncResult) => {
+            this.handleYouTubeSyncResult(
+              result,
+              syncResult,
+            );
+          },
+
+          error: (error) => {
+            console.error(
+              'YouTube channel sync failed:',
+              error,
+            );
+
+            this.analysisError =
+              'LENS could not resolve this YouTube channel. Try again.';
+
+            this.addSourceStep = 'error';
+
+            this.changeDetector.detectChanges();
+          },
+        });
+
+      return;
+    }
+
+    /*
+     * Videos and playlists continue using the
+     * metadata returned by the analysis endpoint.
+     */
+    this.creatorProfile =
+      this.buildDraftCreatorProfile(result);
 
     this.addSourceStep = 'profile';
+
     this.changeDetector.detectChanges();
+  }
+
+  private handleYouTubeSyncResult(
+    analysis: AnalyzeSourceResponse,
+    sync: YouTubeSyncResponse,
+  ): void {
+    /*
+     * A failed sync means we could not resolve the
+     * channel sufficiently to continue.
+     */
+    if (
+      sync.status === 'failed' ||
+      !sync.channelId
+    ) {
+      console.warn(
+        'YouTube channel could not be resolved:',
+        sync,
+      );
+
+      this.analysisError =
+        sync.message ??
+        'LENS could not resolve the YouTube channel. Try again.';
+
+      this.addSourceStep = 'error';
+
+      this.changeDetector.detectChanges();
+
+      return;
+    }
+
+    /*
+     * The resolver deliberately reports needs-review
+     * when it cannot establish a stable channel ID.
+     */
+    if (sync.status === 'needs-review') {
+      console.warn(
+        'YouTube channel needs review:',
+        sync,
+      );
+
+      this.creatorProfile =
+        this.buildDraftCreatorProfile(analysis);
+
+      this.analysisError =
+        sync.message ??
+        'The YouTube channel needs review before it can be added.';
+
+      this.addSourceStep = 'profile';
+
+      this.changeDetector.detectChanges();
+
+      return;
+    }
+
+    /*
+     * SUCCESS
+     *
+     * Example:
+     *
+     * sync.handle
+     *   = "@OpenAI"
+     *
+     * sync.channelId
+     *   = "UCXZCJLdBC09xxGZ6gcdrc6A"
+     *
+     * The channel ID is the stable identity.
+     * The handle is the human-readable source label.
+     *
+     * We intentionally keep identityStatus as
+     * needs-review because resolving a public YouTube
+     * channel is not the same as independently verifying
+     * the creator's real-world identity.
+     */
+
+    const displayName =
+      this.channelDisplayName(
+        sync.handle,
+        sync.channelId,
+      );
+
+    const resolvedAnalysis: AnalyzeSourceResponse = {
+      ...analysis,
+
+      /*
+       * Replace the original @handle external ID
+       * with the stable channel ID.
+       */
+      externalId: sync.channelId,
+
+      /*
+       * Replace the unresolved creator identity with
+       * the successfully resolved YouTube channel.
+       */
+      creatorIdentity: {
+        displayName,
+
+        profileUrl:
+          sync.url,
+
+        status: 'needs-review',
+
+        basis:
+          'YouTube channel resolved from the supplied public channel page. Creator identity remains subject to user review.',
+      },
+    };
+
+    /*
+     * The backend sync does not currently return full
+     * ChannelMetadata such as avatar/description/name.
+     *
+     * Therefore the UI uses the resolved handle for the
+     * profile name rather than showing:
+     *
+     * "Creator identity not yet resolved"
+     */
+    this.creatorProfile =
+      this.buildDraftCreatorProfile(
+        resolvedAnalysis,
+      );
+
+    /*
+     * Keep the canonical URL returned by the sync.
+     */
+    this.sourceUrl = sync.url;
+
+    this.addSourceStep = 'profile';
+
+    this.changeDetector.detectChanges();
+  }
+
+  private channelDisplayName(
+    handle: string | null,
+    channelId: string,
+  ): string {
+    /*
+     * @OpenAI -> OpenAI
+     *
+     * This is a display name derived from the public
+     * YouTube handle, not an independently verified
+     * real-world identity.
+     */
+    if (handle) {
+      const trimmed = handle.trim();
+
+      if (trimmed.startsWith('@')) {
+        const withoutAt = trimmed.slice(1).trim();
+
+        if (withoutAt) {
+          return withoutAt;
+        }
+      }
+
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+
+    /*
+     * Never show the raw channel ID as the creator name
+     * unless there is genuinely no better source label.
+     */
+    return channelId;
   }
 
   returnToSourceInput(): void {
     this.analysisError = '';
+
     this.addSourceStep = 'input';
   }
 
@@ -250,7 +526,10 @@ export class SourcesPage {
       return;
     }
 
-    console.log('Profile saved:', this.creatorProfile);
+    console.log(
+      'Profile saved:',
+      this.creatorProfile,
+    );
 
     this.addSourceStep = 'profile';
   }
@@ -260,48 +539,98 @@ export class SourcesPage {
   }
 
   startProcessing(): void {
-    console.log('LENS processing started', {
-      sourceType: this.selectedType,
-      sourceUrl: this.sourceUrl,
-      backfill: this.selectedBackfill,
-      creatorProfile: this.creatorProfile,
-    });
+    console.log(
+      'LENS processing started',
+      {
+        sourceType: this.selectedType,
+        sourceUrl: this.sourceUrl,
+        backfill: this.selectedBackfill,
+        creatorProfile: this.creatorProfile,
+      },
+    );
 
     this.closeAddSource();
   }
 
-  private buildDraftCreatorProfile(result: AnalyzeSourceResponse): CreatorProfile {
-    const identity = result.creatorIdentity;
-    const channel = result.channel;
+  private buildDraftCreatorProfile(
+    result: AnalyzeSourceResponse,
+  ): CreatorProfile {
+    const identity =
+      result.creatorIdentity;
+
+    const channel =
+      result.channel;
 
     return {
-      name: channel?.name ?? identity?.displayName ?? 'Creator identity not yet resolved',
-      sourceType: this.selectedType,
-      sourceUrl: result.url,
-      avatarUrl: channel?.thumbnailUrl ?? null,
+      /*
+       * Priority:
+       *
+       * 1. Verified/resolved channel metadata
+       * 2. Creator identity returned by backend
+       * 3. Safe unresolved fallback
+       */
+      name:
+        channel?.name ??
+        identity?.displayName ??
+        'Creator identity not yet resolved',
 
+      sourceType:
+        this.selectedType,
+
+      sourceUrl:
+        result.url,
+
+      avatarUrl:
+        channel?.thumbnailUrl ??
+        null,
+
+      /*
+       * If the backend has actual channel metadata,
+       * use its description.
+       *
+       * Otherwise use the identity basis so the UI
+       * explains where the information came from.
+       */
       selfDescription:
         channel?.description ??
         identity?.basis ??
         'No creator information was returned by the source.',
 
-      relevantExpertise: 'Not yet verified',
+      /*
+       * These remain deliberately conservative until
+       * LENS has actual source-content analysis.
+       */
+      relevantExpertise:
+        'Not yet verified',
 
-      education: 'Not provided or independently verified',
+      education:
+        'Not provided or independently verified',
 
-      professionalExperience: 'Not provided or independently verified',
+      professionalExperience:
+        'Not provided or independently verified',
 
-      perspective: 'To be classified by you',
+      perspective:
+        'To be classified by you',
 
-      evidenceStyle: 'To be assessed from source content',
+      evidenceStyle:
+        'To be assessed from source content',
 
-      userPerspective: '',
+      /*
+       * User classification remains separate from
+       * source-derived information.
+       */
+      userPerspective:
+        '',
 
-      userRelevantFor: '',
+      userRelevantFor:
+        '',
 
-      userNotes: '',
+      userNotes:
+        '',
 
-      identityStatus: identity?.status ?? 'needs-review',
+      identityStatus:
+        identity?.status ??
+        'needs-review',
     };
   }
 }

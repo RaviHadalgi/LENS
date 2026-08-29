@@ -3,145 +3,137 @@ import test from 'node:test';
 
 import { YouTubeSourceProvider } from './youtube-source.provider';
 
-function response(status: number, body: unknown): Response {
+function response(status: number, body: string | unknown, contentType = 'application/xml'): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
+    text: async () => typeof body === 'string' ? body : JSON.stringify(body),
     json: async () => body,
+    headers: new Headers({ 'content-type': contentType }),
   } as Response;
 }
 
-test('normalizes official Data API channel details for a handle', async () => {
-  const provider = new YouTubeSourceProvider({
-    apiKey: 'test-key',
-    fetchImplementation: (async (input) => {
-      const requestUrl = new URL(input.toString());
-      assert.equal(requestUrl.searchParams.get('forHandle'), '@OpenAI');
-      assert.equal(requestUrl.searchParams.get('key'), 'test-key');
+const feed = `<?xml version="1.0"?><feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"><title>OpenAI</title><entry><id>yt:video:AAA</id><yt:videoId>AAA</yt:videoId><title>Video A</title><published>2026-08-28T10:00:00+00:00</published></entry><entry><id>yt:video:BBB</id><yt:videoId>BBB</yt:videoId><title>Video B</title><published>2026-08-20T10:00:00+00:00</published></entry></feed>`;
 
-      return response(200, {
-        items: [{
-          id: 'UCtest',
-          snippet: {
-            title: 'OpenAI', customUrl: '@OpenAI', description: 'Research',
-            country: 'US', publishedAt: '2015-12-11T00:00:00Z',
-            thumbnails: { high: { url: 'https://example.test/openai.jpg' } },
-          },
-          contentDetails: { relatedPlaylists: { uploads: 'UUtest' } },
-          statistics: {
-            subscriberCount: '1000', hiddenSubscriberCount: false,
-            videoCount: '42', viewCount: '9000',
-          },
-        }],
-      });
-    }) as typeof fetch,
+test('reads channel RSS/Atom entries for a channel ID', async () => {
+  const provider = new YouTubeSourceProvider({
+    fetchImplementation: async () =>
+      new Response(`<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+  <title>OpenAI</title>
+  <yt:channelId>UCtest</yt:channelId>
+
+  <entry>
+    <id>yt:video:A</id>
+    <yt:videoId>A</yt:videoId>
+    <yt:channelId>UCtest</yt:channelId>
+    <title>Video A</title>
+    <published>2026-08-28T00:00:00+00:00</published>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=A"/>
+  </entry>
+
+  <entry>
+    <id>yt:video:B</id>
+    <yt:videoId>B</yt:videoId>
+    <yt:channelId>UCtest</yt:channelId>
+    <title>Video B</title>
+    <published>2026-08-20T00:00:00+00:00</published>
+    <link rel="alternate" href="https://www.youtube.com/watch?v=B"/>
+  </entry>
+</feed>`, {
+        status: 200,
+        headers: { 'content-type': 'application/atom+xml' },
+      }),
   });
 
-  const result = await provider.getMetadata({
+  const result = await provider.syncChannel(
+    {
+      platform: 'youtube',
+      type: 'channel',
+      url: 'https://www.youtube.com/channel/UCtest',
+      externalId: 'UCtest',
+      channelLookup: {
+        kind: 'channel-id',
+        value: 'UCtest',
+      },
+    },
+    null,
+  );
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.channelId, 'UCtest');
+  assert.equal(result.videos.length, 2);
+
+  assert.deepEqual(result.videos[0], {
+    videoId: 'A',
+    title: 'Video A',
+    url: 'https://www.youtube.com/watch?v=A',
+    publishedAt: '2026-08-28T00:00:00+00:00',
+  });
+
+  assert.deepEqual(result.videos[1], {
+    videoId: 'B',
+    title: 'Video B',
+    url: 'https://www.youtube.com/watch?v=B',
+    publishedAt: '2026-08-20T00:00:00+00:00',
+  });
+});
+
+test('does not pretend a handle is a channel ID when using RSS only', async () => {
+  let called = false;
+  const provider = new YouTubeSourceProvider({
+    fetchImplementation: (async () => { called = true; return response(200, feed); }) as typeof fetch,
+  });
+
+  const result = await provider.syncChannel({
     platform: 'youtube', type: 'channel', url: 'https://youtube.com/@OpenAI',
     externalId: '@OpenAI', channelLookup: { kind: 'handle', value: '@OpenAI' },
-  });
+  }, null);
 
-  assert.equal(result.status, 'available');
-  assert.deepEqual(result.channel && {
-    channelId: result.channel.channelId,
-    handle: result.channel.handle,
-    name: result.channel.name,
-    uploadsPlaylistId: result.channel.uploadsPlaylistId,
-    subscriberCount: result.channel.subscriberCount,
-  }, {
-    channelId: 'UCtest', handle: '@OpenAI', name: 'OpenAI',
-    uploadsPlaylistId: 'UUtest', subscriberCount: 1000,
-  });
+  assert.equal(called, false);
+  assert.equal(result.status, 'needs-review');
+  assert.match(result.message ?? '', /requires a channel ID/);
 });
 
-test('returns an unavailable result for a private or missing channel', async () => {
+test('returns failed when the RSS request fails', async () => {
   const provider = new YouTubeSourceProvider({
-    apiKey: 'test-key',
-    fetchImplementation: (async () => response(200, { items: [] })) as typeof fetch,
+    fetchImplementation: (async () => response(503, 'unavailable')) as typeof fetch,
   });
 
-  const result = await provider.getMetadata({
-    platform: 'youtube', type: 'channel', url: 'https://youtube.com/channel/UCmissing',
-    externalId: 'UCmissing', channelLookup: { kind: 'channel-id', value: 'UCmissing' },
-  });
+  const result = await provider.syncChannel({
+    platform: 'youtube', type: 'channel', url: 'https://youtube.com/channel/UCtest',
+    externalId: 'UCtest', channelLookup: { kind: 'channel-id', value: 'UCtest' },
+  }, null);
 
-  assert.equal(result.status, 'unavailable');
-  assert.match(result.message ?? '', /unavailable, private, or could not be found/);
+  assert.equal(result.status, 'failed');
 });
 
-test('reports quota and rate-limit failures without exposing credentials', async () => {
+
+test('returns failed for malformed Atom XML', async () => {
   const provider = new YouTubeSourceProvider({
-    apiKey: 'secret-key',
-    fetchImplementation: (async () => response(403, {
-      error: { errors: [{ reason: 'quotaExceeded' }] },
-    })) as typeof fetch,
+    fetchImplementation: (async () => response(200, '<feed><entry>broken')) as typeof fetch,
   });
 
-  const result = await provider.getMetadata({
-    platform: 'youtube', type: 'channel', url: 'https://youtube.com/@OpenAI',
-    externalId: '@OpenAI', channelLookup: { kind: 'handle', value: '@OpenAI' },
-  });
+  const result = await provider.syncChannel({
+    platform: 'youtube', type: 'channel', url: 'https://youtube.com/channel/UCtest',
+    externalId: 'UCtest', channelLookup: { kind: 'channel-id', value: 'UCtest' },
+  }, null);
 
-  assert.equal(result.status, 'unavailable');
-  assert.match(result.message ?? '', /quota or rate limit/);
-  assert.doesNotMatch(result.message ?? '', /secret-key/);
+  assert.equal(result.status, 'failed');
 });
 
-test('reports a transport failure from the Data API', async () => {
+test('returns completed with an explicit message for an empty feed', async () => {
   const provider = new YouTubeSourceProvider({
-    apiKey: 'test-key',
-    fetchImplementation: (async () => {
-      throw new Error('network offline');
-    }) as typeof fetch,
+    fetchImplementation: (async () => response(200, '<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"></feed>')) as typeof fetch,
   });
 
-  const result = await provider.getMetadata({
-    platform: 'youtube', type: 'channel', url: 'https://youtube.com/@OpenAI',
-    externalId: '@OpenAI', channelLookup: { kind: 'handle', value: '@OpenAI' },
-  });
+  const result = await provider.syncChannel({
+    platform: 'youtube', type: 'channel', url: 'https://youtube.com/channel/UCtest',
+    externalId: 'UCtest', channelLookup: { kind: 'channel-id', value: 'UCtest' },
+  }, null);
 
-  assert.equal(result.status, 'unavailable');
-  assert.match(result.message ?? '', /could not reach the YouTube Data API/);
-});
-
-test('uses keyless oEmbed as the video-only fallback', async () => {
-  const provider = new YouTubeSourceProvider({
-    fetchImplementation: (async (input) => {
-      assert.equal(new URL(input.toString()).hostname, 'www.youtube.com');
-      return response(200, {
-        title: 'Example video', author_name: 'Example creator',
-        author_url: 'https://youtube.com/@example', provider_name: 'YouTube',
-      });
-    }) as typeof fetch,
-  });
-
-  const result = await provider.getMetadata({
-    platform: 'youtube', type: 'video', url: 'https://youtube.com/watch?v=example',
-    externalId: 'example', channelLookup: null,
-  });
-
-  assert.equal(result.status, 'available');
-  assert.equal(result.metadata?.authorName, 'Example creator');
-  assert.equal(result.channel, null);
-});
-
-test('does not call the API for a legacy custom channel URL', async () => {
-  let wasCalled = false;
-  const provider = new YouTubeSourceProvider({
-    apiKey: 'test-key',
-    fetchImplementation: (async () => {
-      wasCalled = true;
-      return response(500, {});
-    }) as typeof fetch,
-  });
-
-  const result = await provider.getMetadata({
-    platform: 'youtube', type: 'channel', url: 'https://youtube.com/c/LegacyName',
-    externalId: 'LegacyName', channelLookup: { kind: 'custom-url', value: 'LegacyName' },
-  });
-
-  assert.equal(wasCalled, false);
-  assert.equal(result.status, 'unavailable');
-  assert.match(result.message ?? '', /cannot be resolved deterministically/);
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(result.videos, []);
+  assert.match(result.message ?? '', /no video entries/i);
 });

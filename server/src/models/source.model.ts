@@ -13,10 +13,6 @@ export interface SourceMetadata {
   providerName: string;
 }
 
-/**
- * Provider-independent public channel information. Counts can be absent when
- * YouTube does not expose them, so they are nullable rather than invented.
- */
 export interface ChannelMetadata {
   platform: 'youtube';
   channelId: string;
@@ -36,15 +32,29 @@ export interface ChannelMetadata {
   fetchedAt: string;
 }
 
-/**
- * A draft based only on data returned by the supplied source. It is never a
- * credential or identity verification result.
- */
 export interface CreatorIdentityDraft {
   displayName: string;
   profileUrl: string | null;
   status: 'needs-review';
   basis: string;
+}
+
+export interface YouTubeRecentVideo {
+  videoId: string;
+  title: string | null;
+  url: string;
+  publishedAt: string | null;
+  discoveredAt?: string;
+  status?: 'discovered' | 'skipped' | 'processed' | 'failed' | 'needs-review';
+}
+
+export interface YouTubeSyncState {
+  sourceId: string;
+  channelId: string;
+  channelUrl: string;
+  handle: string | null;
+  lastCheckedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
 }
 
 export interface AnalyzeSourceRequest {
@@ -62,4 +72,32 @@ export interface AnalyzeSourceResponse {
   metadataMessage: string | null;
   channel: ChannelMetadata | null;
   creatorIdentity: CreatorIdentityDraft | null;
+}
+
+export interface YouTubeSyncResponse {
+  platform: 'youtube';
+  type: 'channel';
+  url: string;
+  channelId: string | null;
+  handle: string | null;
+  feedUrl: string | null;
+  status: 'completed' | 'needs-review' | 'failed';
+  sync: YouTubeSyncState | null;
+  discovered: YouTubeRecentVideo[];
+  skipped: YouTubeRecentVideo[];
+  newVideos: YouTubeRecentVideo[];
+  message: string | null;
+}
+export interface AnalyzeSourceResponse {
+  platform: 'youtube' | 'unknown';
+  type: SourceType | 'unknown';
+  url: string;
+  externalId: string | null;
+  status: 'detected' | 'unsupported' | 'invalid';
+  metadataStatus: SourceMetadataStatus;
+  metadata: SourceMetadata | null;
+  metadataMessage: string | null;
+  channel: ChannelMetadata | null;
+  creatorIdentity: CreatorIdentityDraft | null;
+  sync?: YouTubeSyncResponse | null;
 }

@@ -56,4 +56,49 @@ export class LensApiService {
   analyzeSource(url: string): Observable<AnalyzeSourceResponse> {
     return this.http.post<AnalyzeSourceResponse>(`${this.baseUrl}/sources/analyze`, { url });
   }
+
+  syncYouTubeChannel(url: string): Observable<YouTubeSyncResponse> {
+    return this.http.post<YouTubeSyncResponse>(`${this.baseUrl}/sources/youtube/sync`, { url });
+  }
+}
+export interface YouTubeSyncResponse {
+  platform: 'youtube';
+  type: 'channel';
+  url: string;
+  channelId: string | null;
+  handle: string | null;
+  feedUrl: string | null;
+  status: 'completed' | 'needs-review' | 'failed';
+  sync: {
+    sourceId: string;
+    channelId: string;
+    channelUrl: string;
+    handle: string | null;
+    lastCheckedAt: string | null;
+    lastSuccessfulSyncAt: string | null;
+  } | null;
+  discovered: Array<{
+    videoId: string;
+    title: string | null;
+    url: string;
+    publishedAt: string | null;
+    discoveredAt?: string;
+    status?: string;
+  }>;
+  skipped: Array<{
+    videoId: string;
+    title: string | null;
+    url: string;
+    publishedAt: string | null;
+    status?: string;
+  }>;
+  newVideos: Array<{
+    videoId: string;
+    title: string | null;
+    url: string;
+    publishedAt: string | null;
+    discoveredAt?: string;
+    status?: string;
+  }>;
+  message: string | null;
 }

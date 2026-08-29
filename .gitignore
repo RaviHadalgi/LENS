@@ -30,3 +30,5 @@ server/dist/
 *.sqlite
 *.sqlite3
 EOF
+# Runtime sync state
+server/data/

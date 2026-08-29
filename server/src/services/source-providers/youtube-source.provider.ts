@@ -1,9 +1,17 @@
-import type { ChannelMetadata, SourceMetadata } from '../../models/source.model';
+import type {
+  SourceMetadata,
+  YouTubeRecentVideo,
+  YouTubeSyncState,
+} from "../../models/source.model";
 import type {
   DetectedSource,
   SourceMetadataResult,
   SourceProvider,
-} from './source-provider';
+  YouTubeChannelResolution,
+  YouTubeSyncResult,
+} from "./source-provider";
+
+type FetchImplementation = typeof fetch;
 
 interface YouTubeOEmbedResponse {
   title?: unknown;
@@ -13,239 +21,358 @@ interface YouTubeOEmbedResponse {
   provider_name?: unknown;
 }
 
-interface YouTubeChannelApiResponse {
-  items?: Array<{
-    id?: unknown;
-    snippet?: {
-      title?: unknown;
-      description?: unknown;
-      customUrl?: unknown;
-      publishedAt?: unknown;
-      country?: unknown;
-      thumbnails?: { high?: { url?: unknown }; medium?: { url?: unknown }; default?: { url?: unknown } };
-    };
-    contentDetails?: { relatedPlaylists?: { uploads?: unknown } };
-    statistics?: {
-      subscriberCount?: unknown;
-      hiddenSubscriberCount?: unknown;
-      videoCount?: unknown;
-      viewCount?: unknown;
-    };
-  }>;
-  error?: { errors?: Array<{ reason?: unknown }> };
+interface AtomEntry {
+  videoId: string;
+  title: string | null;
+  publishedAt: string | null;
 }
-
-type FetchImplementation = typeof fetch;
 
 export interface YouTubeSourceProviderOptions {
-  apiKey?: string;
   fetchImplementation?: FetchImplementation;
+  now?: () => Date;
 }
 
-const OEMBED_ENDPOINT = 'https://www.youtube.com/oembed';
-const DATA_API_ENDPOINT = 'https://www.googleapis.com/youtube/v3/channels';
+const OEMBED_ENDPOINT = "https://www.youtube.com/oembed";
+const RSS_ENDPOINT = "https://www.youtube.com/feeds/videos.xml";
 const REQUEST_TIMEOUT_MS = 5_000;
 
 /**
- * Uses YouTube's official Data API for public channel details when the server
- * has YOUTUBE_DATA_API_KEY. oEmbed remains a keyless, video-only fallback.
+ * YouTube provider using only YouTube's public oEmbed and channel Atom feed.
+ * Channel RSS requires the stable channel ID; handle/custom URLs are retained
+ * but cannot be converted to a channel ID without another public resolver.
  */
 export class YouTubeSourceProvider implements SourceProvider {
-  readonly platform = 'youtube' as const;
-  private readonly apiKey: string | undefined;
+  readonly platform = "youtube" as const;
   private readonly fetchImplementation: FetchImplementation;
 
   constructor(options: YouTubeSourceProviderOptions = {}) {
-    this.apiKey = options.apiKey ?? process.env['YOUTUBE_DATA_API_KEY'];
     this.fetchImplementation = options.fetchImplementation ?? fetch;
   }
 
   async getMetadata(source: DetectedSource): Promise<SourceMetadataResult> {
-    if (source.type === 'channel') {
-      return this.getChannelMetadata(source);
+    if (source.type === "channel") {
+      return this.unavailable(
+        "Channel profile metadata is not resolved from RSS alone. Use channel sync for video discovery.",
+      );
     }
 
-    if (source.type !== 'video') {
-      return this.unavailable('This source type does not expose metadata through this provider.');
+    if (source.type !== "video") {
+      return this.unavailable(
+        "This source type does not expose metadata through this provider.",
+      );
     }
 
     return this.getVideoMetadata(source);
   }
 
-  private async getChannelMetadata(source: DetectedSource): Promise<SourceMetadataResult> {
-    if (!source.channelLookup) {
-      return this.unavailable('No usable channel reference was found in this URL.');
+  async syncChannel(
+    source: DetectedSource,
+    state: YouTubeSyncState | null,
+  ): Promise<YouTubeSyncResult> {
+    if (source.type !== "channel" || !source.channelLookup) {
+      return this.failedSync(source.url, "A YouTube channel URL is required.");
     }
 
-    if (source.channelLookup.kind === 'custom-url') {
-      return this.unavailable(
-        'Legacy /c/ channel URLs cannot be resolved deterministically by the official API. Use the channel handle or /channel/ ID URL.',
+    if (source.channelLookup.kind !== "channel-id") {
+      return {
+        status: "needs-review",
+        channelId: state?.channelId ?? null,
+        handle: state?.handle ?? null,
+        channelUrl: source.url,
+        feedUrl: state?.channelId ? this.feedUrl(state.channelId) : null,
+        videos: [],
+        message:
+          "The public YouTube Atom feed requires a channel ID. A handle/custom/legacy URL can be retained, but resolving its channel ID requires a separate YouTube resolver, which is intentionally outside this RSS-only step.",
+      };
+    }
+
+    const channelId = source.channelLookup.value;
+    const feedUrl = this.feedUrl(channelId);
+    const entries = await this.fetchFeed(feedUrl);
+
+    if (!entries) {
+      return this.failedSync(
+        source.url,
+        "The YouTube public channel feed could not be retrieved or parsed.",
       );
     }
 
-    if (!this.apiKey) {
-      return this.unavailable(
-        'Channel details need the server-side YouTube Data API key. No end-user login is required.',
-      );
-    }
+    const videos = entries.map((entry) => this.toRecentVideo(entry));
 
-    const requestUrl = new URL(DATA_API_ENDPOINT);
-    requestUrl.searchParams.set('part', 'snippet,contentDetails,statistics');
-    requestUrl.searchParams.set('maxResults', '1');
-    requestUrl.searchParams.set('key', this.apiKey);
-
-    switch (source.channelLookup.kind) {
-      case 'handle':
-        requestUrl.searchParams.set('forHandle', source.channelLookup.value);
-        break;
-      case 'channel-id':
-        requestUrl.searchParams.set('id', source.channelLookup.value);
-        break;
-      case 'username':
-        requestUrl.searchParams.set('forUsername', source.channelLookup.value);
-        break;
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-    try {
-      const response = await this.fetchImplementation(requestUrl, {
-        signal: controller.signal,
-        headers: { Accept: 'application/json' },
-      });
-      const payload = (await response.json()) as YouTubeChannelApiResponse;
-
-      if (!response.ok) {
-        return this.unavailable(this.channelApiErrorMessage(response.status, payload));
-      }
-
-      const channel = this.toChannelMetadata(payload, source.url);
-      return channel
-        ? { status: 'available', metadata: null, channel, message: null }
-        : this.unavailable('The channel was unavailable, private, or could not be found.');
-    } catch {
-      return this.unavailable('LENS could not reach the YouTube Data API. Try again later.');
-    } finally {
-      clearTimeout(timeout);
-    }
+    return {
+      status: "completed",
+      channelId,
+      handle: state?.handle ?? null,
+      channelUrl: source.url,
+      feedUrl,
+      videos,
+      message: videos.length
+        ? null
+        : "The channel feed returned no video entries.",
+    };
   }
 
-  private async getVideoMetadata(source: DetectedSource): Promise<SourceMetadataResult> {
-
+  private async getVideoMetadata(
+    source: DetectedSource,
+  ): Promise<SourceMetadataResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const requestUrl = new URL(OEMBED_ENDPOINT);
-      requestUrl.searchParams.set('url', source.url);
-      requestUrl.searchParams.set('format', 'json');
-
+      requestUrl.searchParams.set("url", source.url);
+      requestUrl.searchParams.set("format", "json");
       const response = await this.fetchImplementation(requestUrl, {
         signal: controller.signal,
-        headers: { Accept: 'application/json' },
+        headers: { Accept: "application/json" },
       });
 
       if (!response.ok) {
-        return this.unavailable('YouTube metadata is unavailable for this video.');
+        return this.unavailable(
+          "YouTube metadata is unavailable for this video.",
+        );
       }
 
       const payload = (await response.json()) as YouTubeOEmbedResponse;
       const metadata = this.toMetadata(payload);
-
-      if (!metadata) {
-        return this.unavailable('YouTube returned incomplete metadata for this video.');
-      }
-
-      return { status: 'available', metadata, channel: null, message: null };
+      return metadata
+        ? { status: "available", metadata, channel: null, message: null }
+        : this.unavailable(
+            "YouTube returned incomplete metadata for this video.",
+          );
     } catch {
       return this.unavailable(
-        'LENS could not reach the public YouTube metadata service. Source detection still succeeded.',
+        "LENS could not reach the public YouTube metadata endpoint.",
       );
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  private toChannelMetadata(payload: YouTubeChannelApiResponse, sourceUrl: string): ChannelMetadata | null {
-    const item = payload.items?.[0];
-    if (!item || typeof item.id !== 'string' || typeof item.snippet?.title !== 'string') {
+  private async fetchFeed(feedUrl: string): Promise<AtomEntry[] | null> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await this.fetchImplementation(feedUrl, {
+        signal: controller.signal,
+        headers: { Accept: "application/atom+xml, application/xml, text/xml" },
+      });
+
+      if (!response.ok) return null;
+      const xml = await response.text();
+      return this.parseAtomFeed(xml);
+    } catch {
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
+  }
 
-    const { snippet, statistics, contentDetails } = item;
-    const name = snippet.title as string;
-    const thumbnailUrl = [
-      snippet.thumbnails?.high?.url,
-      snippet.thumbnails?.medium?.url,
-      snippet.thumbnails?.default?.url,
-    ].find((url): url is string => typeof url === 'string') ?? null;
+  private parseAtomFeed(xml: string): AtomEntry[] | null {
+    const normalized = xml.replace(/^\uFEFF/, "").trim();
 
+    // XML declarations, comments, and whitespace may appear before <feed>.
+    const feedStart = normalized.search(/<feed\b/i);
+    if (feedStart < 0) return null;
+
+    const feedXml = normalized.slice(feedStart);
+
+    if (!/^<feed\b[^>]*>/i.test(feedXml)) return null;
+    if (!/<\/feed>\s*$/i.test(feedXml)) return null;
+
+    const entries = [
+      ...feedXml.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi),
+    ];
+
+    return entries.flatMap((match) => {
+      const body = match[1] ?? "";
+      const videoId = this.readTag(body, "yt:videoId");
+
+      if (!videoId) return [];
+
+      return [
+        {
+          videoId,
+          title: this.readTag(body, "title"),
+          publishedAt: this.readTag(body, "published"),
+        },
+      ];
+    });
+  }
+
+  private readTag(xml: string, tagName: string): string | null {
+    const escaped = tagName.replace(":", "\\:");
+    const match = xml.match(
+      new RegExp(`<${escaped}\\b[^>]*>([\\s\\S]*?)<\\/${escaped}>`, "i"),
+    );
+    if (!match?.[1]) return null;
+    return this.decodeXml(match[1].replace(/^<!\[CDATA\[|\]\]>$/g, "").trim());
+  }
+
+  private decodeXml(value: string): string {
+    return value
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+  }
+
+  private feedUrl(channelId: string): string {
+    const url = new URL(RSS_ENDPOINT);
+    url.searchParams.set("channel_id", channelId);
+    return url.toString();
+  }
+
+  private toRecentVideo(entry: AtomEntry): YouTubeRecentVideo {
     return {
-      platform: 'youtube', channelId: item.id,
-      handle: typeof snippet.customUrl === 'string' && snippet.customUrl.startsWith('@') ? snippet.customUrl : null,
-      name,
-      description: typeof snippet.description === 'string' ? snippet.description : null,
-      thumbnailUrl,
-      subscriberCount: this.toNumber(statistics?.subscriberCount),
-      hiddenSubscriberCount: typeof statistics?.hiddenSubscriberCount === 'boolean' ? statistics.hiddenSubscriberCount : null,
-      videoCount: this.toNumber(statistics?.videoCount),
-      viewCount: this.toNumber(statistics?.viewCount),
-      country: typeof snippet.country === 'string' ? snippet.country : null,
-      createdAt: typeof snippet.publishedAt === 'string' ? snippet.publishedAt : null,
-      uploadsPlaylistId: typeof contentDetails?.relatedPlaylists?.uploads === 'string' ? contentDetails.relatedPlaylists.uploads : null,
-      sourceUrl,
-      provider: 'YouTube Data API v3',
-      fetchedAt: new Date().toISOString(),
+      videoId: entry.videoId,
+      title: entry.title,
+      url: `https://www.youtube.com/watch?v=${entry.videoId}`,
+      publishedAt: entry.publishedAt,
     };
   }
 
   private toMetadata(payload: YouTubeOEmbedResponse): SourceMetadata | null {
     if (
-      typeof payload.title !== 'string' ||
-      typeof payload.author_name !== 'string' ||
-      typeof payload.author_url !== 'string'
-    ) {
+      typeof payload.title !== "string" ||
+      typeof payload.author_name !== "string" ||
+      typeof payload.author_url !== "string"
+    )
       return null;
-    }
 
     return {
       title: payload.title,
       authorName: payload.author_name,
       authorUrl: payload.author_url,
       thumbnailUrl:
-        typeof payload.thumbnail_url === 'string' ? payload.thumbnail_url : null,
+        typeof payload.thumbnail_url === "string"
+          ? payload.thumbnail_url
+          : null,
       providerName:
-        typeof payload.provider_name === 'string' ? payload.provider_name : 'YouTube',
+        typeof payload.provider_name === "string"
+          ? payload.provider_name
+          : "YouTube",
     };
   }
 
-  private toNumber(value: unknown): number | null {
-    if (typeof value !== 'string' || !/^\d+$/.test(value)) {
-      return null;
-    }
-
-    const numberValue = Number(value);
-    return Number.isSafeInteger(numberValue) ? numberValue : null;
-  }
-
-  private channelApiErrorMessage(status: number, payload: YouTubeChannelApiResponse): string {
-    const reasons = payload.error?.errors
-      ?.map((error) => error.reason)
-      .filter((reason): reason is string => typeof reason === 'string');
-
-    if (status === 429 || reasons?.includes('quotaExceeded') || reasons?.includes('dailyLimitExceeded')) {
-      return 'The YouTube Data API quota or rate limit was reached. Try again later.';
-    }
-
-    if (status === 403 && reasons?.includes('keyInvalid')) {
-      return 'The server-side YouTube Data API key is invalid or not enabled for this API.';
-    }
-
-    return 'The YouTube Data API could not retrieve this channel.';
-  }
-
   private unavailable(message: string): SourceMetadataResult {
-    return { status: 'unavailable', metadata: null, channel: null, message };
+    return { status: "unavailable", metadata: null, channel: null, message };
+  }
+
+  private failedSync(channelUrl: string, message: string): YouTubeSyncResult {
+    return {
+      status: "failed",
+      channelId: null,
+      handle: null,
+      channelUrl,
+      feedUrl: null,
+      videos: [],
+      message,
+    };
+  }
+
+  async resolveChannel(
+    source: DetectedSource,
+  ): Promise<YouTubeChannelResolution> {
+    if (source.type !== "channel" || !source.channelLookup) {
+      return {
+        channelId: null,
+        handle: null,
+        channelUrl: source.url,
+        message: "A YouTube channel URL is required.",
+      };
+    }
+
+    if (source.channelLookup.kind === "channel-id") {
+      return {
+        channelId: source.channelLookup.value,
+        handle: null,
+        channelUrl: source.url,
+        message: null,
+      };
+    }
+
+    if (source.channelLookup.kind !== "handle") {
+      return {
+        channelId: null,
+        handle: null,
+        channelUrl: source.url,
+        message:
+          "Only YouTube channel handles and channel ID URLs can be resolved using the public YouTube page.",
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await this.fetchImplementation(source.url, {
+        signal: controller.signal,
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+        },
+      });
+
+      if (!response.ok) {
+        return {
+          channelId: null,
+          handle: source.channelLookup.value,
+          channelUrl: source.url,
+          message: `YouTube channel page returned HTTP ${response.status}.`,
+        };
+      }
+
+      const html = await response.text();
+      const channelId = this.extractChannelId(html);
+
+      if (!channelId) {
+        return {
+          channelId: null,
+          handle: source.channelLookup.value,
+          channelUrl: source.url,
+          message:
+            "The public YouTube channel page did not expose a channel ID.",
+        };
+      }
+
+      return {
+        channelId,
+        handle: source.channelLookup.value,
+        channelUrl: source.url,
+        message: null,
+      };
+    } catch {
+      return {
+        channelId: null,
+        handle: source.channelLookup.value,
+        channelUrl: source.url,
+        message: "LENS could not reach the public YouTube channel page.",
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private extractChannelId(html: string): string | null {
+    const patterns = [
+      /<meta[^>]+itemprop=["']channelId["'][^>]+content=["'](UC[a-zA-Z0-9_-]{20,})["']/i,
+      /"channelId"\s*:\s*"((?:UC)[a-zA-Z0-9_-]{20,})"/,
+      /\\"channelId\\"\s*:\s*\\"((?:UC)[a-zA-Z0-9_-]{20,})\\"/,
+      /"externalId"\s*:\s*"((?:UC)[a-zA-Z0-9_-]{20,})"/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+
+    return null;
   }
 }
