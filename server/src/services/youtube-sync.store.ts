@@ -1,13 +1,39 @@
-import { mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import type {
+  SourceType,
   YouTubeRecentVideo,
   YouTubeSyncState,
 } from '../models/source.model';
 
 const DEFAULT_PATH = resolve(process.cwd(), 'data/youtube-sync.sqlite');
+
+export interface SourceAccount {
+  sourceKey: string;
+  platform: 'youtube';
+  sourceType: SourceType;
+  externalId: string;
+  url: string;
+  handle: string | null;
+  status: 'active' | 'needs-review' | 'failed';
+  lastCheckedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertSourceAccountInput {
+  sourceKey: string;
+  platform: 'youtube';
+  sourceType: SourceType;
+  externalId: string;
+  url: string;
+  handle: string | null;
+  status: SourceAccount['status'];
+  lastCheckedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+}
 
 export class YouTubeSyncStore {
   private readonly filePath: string;
@@ -17,51 +43,113 @@ export class YouTubeSyncStore {
     this.filePath = filePath;
   }
 
-  async getSource(sourceId: string): Promise<YouTubeSyncState | null> {
+  async getSource(sourceKey: string): Promise<YouTubeSyncState | null> {
+    const account = await this.getSourceAccount(sourceKey);
+
+    if (!account) {
+      return null;
+    }
+
+    return {
+      sourceId: account.sourceKey,
+      channelId: account.externalId,
+      channelUrl: account.url,
+      handle: account.handle,
+      lastCheckedAt: account.lastCheckedAt,
+      lastSuccessfulSyncAt: account.lastSuccessfulSyncAt,
+    };
+  }
+
+  async getSourceAccount(
+    sourceKey: string,
+  ): Promise<SourceAccount | null> {
     const row = this.database()
       .prepare(`
         SELECT
-          source_id AS sourceId,
-          channel_id AS channelId,
-          channel_url AS channelUrl,
+          source_key AS sourceKey,
+          platform,
+          source_type AS sourceType,
+          external_id AS externalId,
+          url,
           handle,
+          status,
           last_checked_at AS lastCheckedAt,
-          last_successful_sync_at AS lastSuccessfulSyncAt
-        FROM youtube_sources
-        WHERE source_id = ?
+          last_successful_sync_at AS lastSuccessfulSyncAt,
+          created_at AS createdAt,
+          updated_at AS updatedAt
+        FROM source_accounts
+        WHERE source_key = ?
       `)
-      .get(sourceId) as YouTubeSyncState | undefined;
+      .get(sourceKey) as SourceAccount | undefined;
 
     return row ?? null;
   }
 
-  async upsertSource(source: YouTubeSyncState): Promise<void> {
+  async upsertSourceAccount(
+    source: UpsertSourceAccountInput,
+  ): Promise<void> {
+    const now = new Date().toISOString();
+
     this.database()
       .prepare(`
-        INSERT INTO youtube_sources (
-          source_id,
-          channel_id,
-          channel_url,
+        INSERT INTO source_accounts (
+          source_key,
+          platform,
+          source_type,
+          external_id,
+          url,
           handle,
+          status,
           last_checked_at,
-          last_successful_sync_at
+          last_successful_sync_at,
+          created_at,
+          updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(source_id) DO UPDATE SET
-          channel_id = excluded.channel_id,
-          channel_url = excluded.channel_url,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_key) DO UPDATE SET
+          platform = excluded.platform,
+          source_type = excluded.source_type,
+          external_id = excluded.external_id,
+          url = excluded.url,
           handle = excluded.handle,
+          status = excluded.status,
           last_checked_at = excluded.last_checked_at,
-          last_successful_sync_at = excluded.last_successful_sync_at
+          last_successful_sync_at = excluded.last_successful_sync_at,
+          updated_at = excluded.updated_at
       `)
       .run(
-        source.sourceId,
-        source.channelId,
-        source.channelUrl,
+        source.sourceKey,
+        source.platform,
+        source.sourceType,
+        source.externalId,
+        source.url,
         source.handle,
+        source.status,
         source.lastCheckedAt,
         source.lastSuccessfulSyncAt,
+        now,
+        now,
       );
+  }
+
+  /*
+   * Compatibility wrapper used by the current YouTube sync service.
+   *
+   * Keep this temporarily so the sync service does not need to change
+   * in the same step as the persistence migration.
+   */
+  async upsertSource(source: YouTubeSyncState): Promise<void> {
+    await this.upsertSourceAccount({
+      sourceKey: source.sourceId,
+      platform: 'youtube',
+      sourceType: 'channel',
+      externalId: source.channelId,
+      url: source.channelUrl,
+      handle: source.handle,
+      status: 'active',
+      lastCheckedAt: source.lastCheckedAt,
+      lastSuccessfulSyncAt: source.lastSuccessfulSyncAt,
+    });
   }
 
   async hasVideo(videoId: string): Promise<boolean> {
@@ -107,30 +195,53 @@ export class YouTubeSyncStore {
   }
 
   async close(): Promise<void> {
-    if (!this.db) return;
+    if (!this.db) {
+      return;
+    }
 
     this.db.close();
     this.db = null;
   }
 
   private database(): DatabaseSync {
-    if (this.db) return this.db;
+    if (this.db) {
+      return this.db;
+    }
 
-    void mkdir(dirname(this.filePath), { recursive: true });
+    /*
+     * DatabaseSync opens the SQLite file synchronously.
+     * Ensure the directory exists before opening it.
+     */
+    const directory = dirname(this.filePath);
+
+    require('node:fs').mkdirSync(directory, {
+      recursive: true,
+    });
 
     this.db = new DatabaseSync(this.filePath);
 
     this.db.exec(`
       PRAGMA journal_mode = WAL;
 
-      CREATE TABLE IF NOT EXISTS youtube_sources (
-        source_id TEXT PRIMARY KEY,
-        channel_id TEXT NOT NULL,
-        channel_url TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS source_accounts (
+        source_key TEXT PRIMARY KEY,
+        platform TEXT NOT NULL,
+        source_type TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        url TEXT NOT NULL,
         handle TEXT,
+        status TEXT NOT NULL,
         last_checked_at TEXT,
-        last_successful_sync_at TEXT
+        last_successful_sync_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       );
+
+      CREATE INDEX IF NOT EXISTS idx_source_accounts_external_id
+        ON source_accounts(platform, external_id);
+
+      CREATE INDEX IF NOT EXISTS idx_source_accounts_handle
+        ON source_accounts(platform, handle);
 
       CREATE TABLE IF NOT EXISTS youtube_videos (
         video_id TEXT PRIMARY KEY,
