@@ -1,0 +1,43 @@
+:host {
+  display: inline-block;
+}
+
+.lens-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.lens-badge-pill {
+  border-radius: 999px;
+}
+
+.lens-badge-neutral {
+  background: #f0f2f5;
+  color: #66707d;
+}
+
+.lens-badge-info {
+  background: #eef0ff;
+  color: #4d4bc7;
+}
+
+.lens-badge-success {
+  background: #edf8f1;
+  color: #28754a;
+}
+
+.lens-badge-warning {
+  background: #fff7e8;
+  color: #946200;
+}
+
+.lens-badge-danger {
+  background: #fef0ef;
+  color: #b42318;
+}

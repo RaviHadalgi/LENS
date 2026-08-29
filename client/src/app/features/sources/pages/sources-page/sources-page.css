@@ -1,0 +1,478 @@
+:host {
+  display: block;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   Sources page
+========================================================= */
+
+.sources-page {
+  width: min(1080px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 36px 0 60px;
+}
+
+.page-header,
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.page-header h1,
+.section-header h2 {
+  margin: 0;
+  color: #17202a;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+
+.page-header p,
+.section-header p {
+  margin: 7px 0 0;
+  color: #7b8490;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   Source library
+========================================================= */
+
+.library {
+  margin-top: 42px;
+}
+
+.section-header h2 {
+  font-size: 19px;
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.source-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.source-avatar,
+.profile-avatar,
+.loading-symbol {
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #eef0ff;
+  color: #4d4bc7;
+  font-weight: 700;
+}
+
+.source-avatar {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.source-top h3 {
+  margin: 0;
+  color: #17202a;
+  font-size: 15px;
+}
+
+.source-top p {
+  margin: 5px 0 0;
+  color: #7b8490;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.source-stats {
+  display: flex;
+  gap: 14px;
+  margin-top: 20px;
+  color: #687180;
+  font-size: 12px;
+}
+
+/* =========================================================
+   Add source
+========================================================= */
+
+.source-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.type-button {
+  padding: 14px;
+  border: 1px solid #dde2e8;
+  border-radius: 11px;
+  background: #f8f9fb;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.type-button:hover {
+  border-color: #cfd5de;
+}
+
+.type-button.active {
+  border-color: #cfd6ff;
+  background: #f0f1ff;
+}
+
+.type-button strong,
+.type-button span {
+  display: block;
+}
+
+.type-button strong {
+  color: #252d38;
+  font-size: 13px;
+}
+
+.type-button span {
+  margin-top: 5px;
+  color: #7b8490;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.source-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: #7f8894;
+  font-size: 12px;
+}
+
+.source-note span {
+  color: #2f8f58;
+}
+
+/* =========================================================
+   Analysis state
+========================================================= */
+
+.analysis-state {
+  padding: 30px 10px 20px;
+  text-align: center;
+}
+
+.loading-symbol {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 18px;
+  background: #171b22;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.analysis-state h3 {
+  margin: 0;
+  color: #17202a;
+  font-size: 20px;
+}
+
+.analysis-state p {
+  max-width: 440px;
+  margin: 8px auto 0;
+  color: #7b8490;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.analysis-error {
+  padding: 18px;
+  border: 1px solid #f1c7c7;
+  border-radius: 12px;
+  background: #fff7f7;
+  color: #7e2f2f;
+}
+
+.analysis-error strong {
+  display: block;
+  font-size: 14px;
+}
+
+.analysis-error p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.progress-track {
+  height: 7px;
+  margin-top: 25px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf0f3;
+}
+
+.progress-bar {
+  width: 68%;
+  height: 100%;
+  border-radius: inherit;
+  background: #5b5bd6;
+  animation: progress 1.4s ease-in-out infinite alternate;
+}
+
+.progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 15px;
+  color: #6c7581;
+  font-size: 12px;
+  text-align: left;
+}
+
+/* =========================================================
+   Creator profile
+========================================================= */
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-size: 17px;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-identity h3 {
+  margin: 0;
+  color: #17202a;
+  font-size: 16px;
+}
+
+.profile-identity p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #828b97;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+/*
+ * LensCard now provides the actual card/container.
+ * profile-field only handles the text inside it.
+ */
+.profile-field span {
+  display: block;
+  color: #7c8591;
+  font-size: 11px;
+}
+
+.profile-field strong {
+  display: block;
+  margin-top: 5px;
+  color: #28313d;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.user-profile-field {
+  background: #f7f7ff;
+}
+
+/* =========================================================
+   Verification / informational blocks
+========================================================= */
+
+.verification-note,
+.processing-note {
+  margin-top: 15px;
+  padding: 12px 13px;
+  border-radius: 10px;
+  background: #f5f6f8;
+  color: #66707d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   Edit profile
+========================================================= */
+
+.edit-section {
+  margin-top: 24px;
+}
+
+.edit-section:first-child {
+  margin-top: 0;
+}
+
+.edit-section-title {
+  margin-bottom: 10px;
+  color: #17202a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.edit-help {
+  margin: 0 0 12px;
+  color: #7b8490;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.edit-field {
+  min-width: 0;
+}
+
+.edit-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.user-section {
+  padding-top: 20px;
+  border-top: 1px solid #e5e8ed;
+}
+
+/* =========================================================
+   Processing options
+========================================================= */
+
+.backfill-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.backfill-option {
+  padding: 15px;
+  border: 1px solid #dde2e8;
+  border-radius: 12px;
+  background: #f8f9fb;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.backfill-option:hover {
+  border-color: #cfd5de;
+}
+
+.backfill-option.active {
+  border-color: #cfd6ff;
+  background: #f0f1ff;
+}
+
+.backfill-option strong,
+.backfill-option span {
+  display: block;
+}
+
+.backfill-option strong {
+  color: #252d38;
+  font-size: 13px;
+}
+
+.backfill-option span {
+  margin-top: 5px;
+  color: #7b8490;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* =========================================================
+   Progress animation
+========================================================= */
+
+@keyframes progress {
+  from {
+    width: 45%;
+  }
+
+  to {
+    width: 82%;
+  }
+}
+
+/* =========================================================
+   Responsive
+========================================================= */
+
+@media (max-width: 850px) {
+  .source-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .sources-page {
+    width: calc(100% - 28px);
+  }
+
+  .source-types,
+  .profile-grid,
+  .edit-grid,
+  .backfill-options {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-field.full-width {
+    grid-column: auto;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
+
+  .profile-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .user-profile-field {
+    width: 100%;
+  }
+}

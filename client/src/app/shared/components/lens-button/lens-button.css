@@ -1,0 +1,109 @@
+:host {
+  display: inline-block;
+}
+
+.lens-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.lens-button-small {
+  min-height: 34px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.lens-button-medium {
+  min-height: 42px;
+  padding: 0 15px;
+  font-size: 13px;
+}
+
+.lens-button-large {
+  min-height: 48px;
+  padding: 0 18px;
+  font-size: 14px;
+}
+
+.lens-button-primary {
+  background: #171b22;
+  color: #ffffff;
+}
+
+.lens-button-primary:hover:not(:disabled) {
+  background: #252a33;
+}
+
+.lens-button-secondary {
+  border: 1px solid #d9dee5;
+  background: #ffffff;
+  color: #4b5563;
+}
+
+.lens-button-secondary:hover:not(:disabled) {
+  background: #f7f8fa;
+}
+
+.lens-button-ghost {
+  background: transparent;
+  color: #4d5bd6;
+}
+
+.lens-button-ghost:hover:not(:disabled) {
+  background: #f0f1ff;
+}
+
+.lens-button-danger {
+  background: #b42318;
+  color: #ffffff;
+}
+
+.lens-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lens-button-full {
+  width: 100%;
+}
+
+.button-content-hidden {
+  visibility: hidden;
+}
+
+.button-spinner {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgb(255 255 255 / 30%);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: lens-spin 700ms linear infinite;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@keyframes lens-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

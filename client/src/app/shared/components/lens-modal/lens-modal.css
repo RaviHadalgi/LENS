@@ -1,0 +1,122 @@
+:host {
+  display: contents;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+  background: rgb(15 23 42 / 30%);
+  overscroll-behavior: contain;
+}
+
+.modal-container {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid #dde2e8;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgb(17 24 39 / 18%);
+}
+
+/* -----------------------------
+   Fixed header
+----------------------------- */
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 26px;
+  border-bottom: 1px solid #e5e8ed;
+  background: #ffffff;
+}
+
+.modal-header-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.close-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: #f3f4f6;
+  color: #66707d;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.close-button:hover {
+  background: #e9ebef;
+}
+
+/* -----------------------------
+   Scrollable body
+----------------------------- */
+
+.modal-body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 26px;
+  scrollbar-gutter: stable;
+}
+
+/* -----------------------------
+   Fixed footer
+----------------------------- */
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 26px;
+  border-top: 1px solid #e5e8ed;
+  background: #ffffff;
+}
+
+/* -----------------------------
+   Mobile
+----------------------------- */
+
+@media (max-width: 650px) {
+  .modal-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .modal-container {
+    width: 100%;
+    max-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .modal-header {
+    padding: 18px 20px;
+  }
+
+  .modal-body {
+    padding: 20px;
+  }
+
+  .modal-footer {
+    padding: 14px 20px;
+  }
+}

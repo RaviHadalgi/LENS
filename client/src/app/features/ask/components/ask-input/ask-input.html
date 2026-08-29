@@ -1,0 +1,55 @@
+<form
+  class="ask-box"
+  (submit)="$event.preventDefault(); submit()"
+>
+  <textarea
+    class="ask-textarea"
+    [ngModel]="value"
+    (ngModelChange)="handleInput($event)"
+    name="question"
+    rows="3"
+    placeholder="Ask anything about your sources..."
+    (keydown.enter)="handleEnter($event)"
+  ></textarea>
+
+  <div class="ask-toolbar">
+    <div class="analysis-modes">
+      <button
+        class="mode-button"
+        [class.active]="selectedMode === 'all'"
+        type="button"
+        (click)="setMode('all')"
+      >
+        All sources
+      </button>
+
+      <button
+        class="mode-button"
+        [class.active]="selectedMode === 'related'"
+        type="button"
+        (click)="setMode('related')"
+      >
+        Related knowledge
+      </button>
+
+      <button
+        class="mode-button"
+        [class.active]="selectedMode === 'deep'"
+        type="button"
+        (click)="setMode('deep')"
+      >
+        Deep analysis
+      </button>
+    </div>
+
+    <app-lens-button
+      variant="primary"
+      size="small"
+      type="submit"
+      [disabled]="!value.trim()"
+      aria-label="Ask LENS"
+    >
+      ↑
+    </app-lens-button>
+  </div>
+</form>

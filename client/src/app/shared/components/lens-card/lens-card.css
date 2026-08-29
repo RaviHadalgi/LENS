@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+
+.lens-card {
+  width: 100%;
+  border: 1px solid #e0e4ea;
+  border-radius: 15px;
+  background: #ffffff;
+}
+
+.lens-card-small {
+  padding: 14px;
+}
+
+.lens-card:not(.lens-card-small):not(.lens-card-large) {
+  padding: 20px;
+}
+
+.lens-card-large {
+  padding: 28px;
+}
+
+.lens-card-interactive {
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.lens-card-interactive:hover {
+  border-color: #cfd5de;
+  box-shadow: 0 8px 24px rgb(17 24 39 / 5%);
+  transform: translateY(-1px);
+}

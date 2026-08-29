@@ -1,0 +1,40 @@
+:host {
+  display: block;
+}
+
+.suggestion-card {
+  width: 100%;
+  min-height: 90px;
+  padding: 16px;
+  border: 1px solid #e0e4ea;
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.suggestion-card:hover {
+  transform: translateY(-1px);
+  border-color: #cfd5de;
+  box-shadow: 0 6px 20px rgb(17 24 39 / 5%);
+}
+
+.suggestion-title {
+  display: block;
+  color: #202733;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.suggestion-description {
+  display: block;
+  margin-top: 6px;
+  color: #858d98;
+  font-size: 12px;
+  line-height: 1.45;
+}

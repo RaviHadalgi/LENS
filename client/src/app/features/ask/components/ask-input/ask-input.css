@@ -1,0 +1,76 @@
+:host {
+  display: block;
+}
+
+.ask-box {
+  margin-top: 38px;
+  padding: 12px;
+  border: 1px solid #d8dee6;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 8px 30px rgb(17 24 39 / 5%);
+}
+
+.ask-textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 10px 12px 4px;
+  background: transparent;
+  color: #17202a;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.ask-textarea::placeholder {
+  color: #9aa2ad;
+}
+
+.ask-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px 2px 4px;
+}
+
+.analysis-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mode-button {
+  padding: 7px 10px;
+  border: 1px solid #e0e4ea;
+  border-radius: 8px;
+  background: #f8f9fb;
+  color: #66707d;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mode-button.active {
+  border-color: #cfd6ff;
+  background: #eef0ff;
+  color: #4d4bc7;
+}
+
+@media (max-width: 600px) {
+  .ask-box {
+    margin-top: 24px;
+  }
+
+  .ask-toolbar {
+    align-items: flex-end;
+  }
+
+  .analysis-modes {
+    max-width: calc(100% - 48px);
+  }
+}

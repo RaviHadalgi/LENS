@@ -1,0 +1,59 @@
+:host {
+  display: block;
+}
+
+.source-card {
+  margin-top: 10px;
+  padding: 18px;
+  border: 1px solid #e2e6eb;
+  border-radius: 14px;
+  background: #fafbfc;
+}
+
+.source-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.source-identity {
+  min-width: 0;
+}
+
+.source-name {
+  color: #202733;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.source-perspective {
+  margin-top: 4px;
+  color: #6d7684;
+  font-size: 12px;
+}
+
+.source-statement {
+  margin-top: 14px;
+  color: #3d4652;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.source-link {
+  margin-top: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #4d5bd6;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 650px) {
+  .source-header {
+    flex-direction: column;
+  }
+}

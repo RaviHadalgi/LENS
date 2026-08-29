@@ -1,0 +1,60 @@
+/* You can add global styles to this file, and also import other style files */
+
+@import 'tailwindcss';
+
+/* =========================================
+   LENS shared form controls
+========================================= */
+
+.lens-input,
+.lens-textarea,
+.lens-select {
+  width: 100%;
+  border: 1px solid #d7dde5;
+  border-radius: 10px;
+  outline: 0;
+  background: #ffffff;
+  color: #17202a;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.lens-input {
+  height: 46px;
+  padding: 0 13px;
+}
+
+.lens-textarea {
+  min-height: 84px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.lens-select {
+  height: 46px;
+  padding: 0 12px;
+}
+
+.lens-input::placeholder,
+.lens-textarea::placeholder {
+  color: #9aa2ad;
+}
+
+.lens-input:focus,
+.lens-textarea:focus,
+.lens-select:focus {
+  border-color: #8e95ff;
+  box-shadow: 0 0 0 3px rgb(93 91 214 / 8%);
+}
+
+.lens-input:disabled,
+.lens-textarea:disabled,
+.lens-select:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.7;
+}

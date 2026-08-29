@@ -1,0 +1,748 @@
+<section class="sources-page">
+  <!-- =========================================================
+       PAGE HEADER
+  ========================================================== -->
+
+  <header class="page-header">
+    <div>
+      <h1>Sources</h1>
+
+      <p>
+        Add the people and content you want LENS to learn from.
+      </p>
+    </div>
+
+    <app-lens-button
+      variant="primary"
+      type="button"
+      (click)="openAddSource()"
+    >
+      + Add source
+    </app-lens-button>
+  </header>
+
+  <!-- =========================================================
+       SOURCE LIBRARY
+  ========================================================== -->
+
+  <section class="library">
+    <div class="section-header">
+      <div>
+        <h2>Your sources</h2>
+
+        <p>
+          Creators and channels LENS is learning from.
+        </p>
+      </div>
+
+      <app-lens-badge tone="neutral" [pill]="true">
+        {{ sources.length }} sources
+      </app-lens-badge>
+    </div>
+
+    <div class="source-grid">
+      @for (source of sources; track source.name) {
+        <app-lens-card [interactive]="true">
+          <div class="source-top">
+            <div class="source-avatar">
+              {{ source.name.charAt(0) }}
+            </div>
+
+            <div>
+              <h3>{{ source.name }}</h3>
+
+              <p>
+                {{ source.perspective }}
+              </p>
+            </div>
+          </div>
+
+          <div class="source-stats">
+            <span>
+              {{ source.contentCount }} items
+            </span>
+
+            <span>
+              {{ source.conceptCount }} concepts
+            </span>
+          </div>
+
+          @if (source.status === 'verified') {
+            <app-lens-badge tone="success">
+              Profile verified
+            </app-lens-badge>
+          } @else {
+            <app-lens-badge tone="warning">
+              Profile review available
+            </app-lens-badge>
+          }
+        </app-lens-card>
+      }
+    </div>
+  </section>
+
+  <!-- =========================================================
+       ADD / ANALYZE / REVIEW / EDIT / PROCESS MODAL
+
+       LensModal owns:
+       - backdrop
+       - header
+       - title
+       - description
+       - close button
+       - scrollable body
+       - footer
+  ========================================================== -->
+
+  <app-lens-modal
+    [open]="showAddSource"
+    [title]="modalTitle"
+    [description]="modalDescription"
+    (closed)="closeAddSource()"
+  >
+
+    <!-- =======================================================
+         1. SOURCE INPUT
+    ======================================================== -->
+
+    @if (addSourceStep === 'input') {
+      <div class="source-types">
+        <button
+          type="button"
+          class="type-button"
+          [class.active]="selectedType === 'channel'"
+          (click)="selectType('channel')"
+        >
+          <strong>Channel</strong>
+
+          <span>
+            Discover the creator's content
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="type-button"
+          [class.active]="selectedType === 'playlist'"
+          (click)="selectType('playlist')"
+        >
+          <strong>Playlist</strong>
+
+          <span>
+            Learn from a specific series
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="type-button"
+          [class.active]="selectedType === 'video'"
+          (click)="selectType('video')"
+        >
+          <strong>Video</strong>
+
+          <span>
+            Analyze one piece of content
+          </span>
+        </button>
+      </div>
+
+      <app-lens-form-field
+        label="Source URL"
+        forId="source-url"
+        hint="Paste a YouTube channel, playlist, or video URL."
+        [required]="true"
+      >
+        <input
+          id="source-url"
+          class="lens-input"
+          type="url"
+          [(ngModel)]="sourceUrl"
+          [placeholder]="
+            selectedType === 'channel'
+              ? 'https://youtube.com/@creator'
+              : selectedType === 'playlist'
+                ? 'https://youtube.com/playlist?list=...'
+                : 'https://youtube.com/watch?v=...'
+          "
+        />
+      </app-lens-form-field>
+
+      <div class="source-note">
+        <span>●</span>
+
+        LENS will verify the creator before processing.
+      </div>
+    }
+
+    <!-- =======================================================
+         2. ANALYZING SOURCE
+    ======================================================== -->
+
+    @if (addSourceStep === 'analyzing') {
+      <div class="analysis-state">
+        <div class="loading-symbol">
+          L
+        </div>
+
+        <h3>Identifying source</h3>
+
+        <p>
+          LENS is checking the source and preparing
+          a draft creator profile.
+        </p>
+
+        <div class="progress-track">
+          <div class="progress-bar"></div>
+        </div>
+
+        <div class="progress-steps">
+          <span>✓ Source detected</span>
+          <span>✓ Identity search</span>
+          <span>• Building creator profile</span>
+        </div>
+      </div>
+    }
+
+    @if (addSourceStep === 'error') {
+      <div class="analysis-error" role="alert">
+        <strong>Source analysis did not finish.</strong>
+
+        <p>{{ analysisError }}</p>
+      </div>
+    }
+
+    <!-- =======================================================
+         3. CREATOR PROFILE REVIEW
+    ======================================================== -->
+
+    @if (
+      addSourceStep === 'profile' &&
+      creatorProfile
+    ) {
+      <div class="profile-header">
+        <div class="profile-avatar">
+          @if (creatorProfile.avatarUrl) {
+            <img
+              [src]="creatorProfile.avatarUrl"
+              [alt]="creatorProfile.name + ' channel avatar'"
+            />
+          } @else {
+            {{ creatorProfile.name.charAt(0) }}
+          }
+        </div>
+
+        <div class="profile-identity">
+          <h3>
+            {{ creatorProfile.name }}
+          </h3>
+
+          <p>
+            {{ creatorProfile.sourceUrl }}
+          </p>
+        </div>
+
+        @if (
+          creatorProfile.identityStatus ===
+          'high-confidence'
+        ) {
+          <app-lens-badge tone="success">
+            Identity likely matched
+          </app-lens-badge>
+        } @else {
+          <app-lens-badge tone="warning">
+            Needs your review
+          </app-lens-badge>
+        }
+      </div>
+
+      <div class="profile-grid">
+        <app-lens-card padding="small">
+          <div class="profile-field">
+            <span>Self-described role</span>
+
+            <strong>
+              {{ creatorProfile.selfDescription }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card padding="small">
+          <div class="profile-field">
+            <span>Perspective</span>
+
+            <strong>
+              {{ creatorProfile.perspective }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card padding="small">
+          <div class="profile-field">
+            <span>Relevant expertise</span>
+
+            <strong>
+              {{ creatorProfile.relevantExpertise }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card padding="small">
+          <div class="profile-field">
+            <span>Education / degree</span>
+
+            <strong>
+              {{ creatorProfile.education }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card padding="small">
+          <div class="profile-field">
+            <span>Professional experience</span>
+
+            <strong>
+              {{ creatorProfile.professionalExperience }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card padding="small">
+          <div class="profile-field">
+            <span>Evidence style</span>
+
+            <strong>
+              {{ creatorProfile.evidenceStyle }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card
+          padding="small"
+          class="user-profile-field"
+        >
+          <div class="profile-field">
+            <span>Your classification</span>
+
+            <strong>
+              {{
+                creatorProfile.userPerspective ||
+                  'Not classified yet'
+              }}
+            </strong>
+          </div>
+        </app-lens-card>
+
+        <app-lens-card
+          padding="small"
+          class="user-profile-field"
+        >
+          <div class="profile-field">
+            <span>Relevant to you for</span>
+
+            <strong>
+              {{
+                creatorProfile.userRelevantFor ||
+                  'Not specified yet'
+              }}
+            </strong>
+          </div>
+        </app-lens-card>
+      </div>
+
+      <div class="verification-note">
+        <strong>Important:</strong>
+
+        creator claims, independently sourced information,
+        LENS interpretation and your classification remain
+        separate.
+      </div>
+    }
+
+    <!-- =======================================================
+         4. EDIT CREATOR PROFILE
+    ======================================================== -->
+
+    @if (
+      addSourceStep === 'editing' &&
+      creatorProfile
+    ) {
+      <div class="edit-section">
+        <div class="edit-section-title">
+          Source information
+        </div>
+
+        <div class="edit-grid">
+          <app-lens-form-field
+            label="Creator name"
+            forId="creator-name"
+            [required]="true"
+          >
+            <input
+              id="creator-name"
+              class="lens-input"
+              type="text"
+              [(ngModel)]="creatorProfile.name"
+            />
+          </app-lens-form-field>
+
+          <app-lens-form-field
+            label="Self-described role"
+            forId="source-role"
+          >
+            <input
+              id="source-role"
+              class="lens-input"
+              type="text"
+              [(ngModel)]="creatorProfile.selfDescription"
+            />
+          </app-lens-form-field>
+
+          <app-lens-form-field
+            label="Education / degree"
+            forId="education"
+            hint="Keep unverified information clearly marked."
+          >
+            <textarea
+              id="education"
+              class="lens-textarea"
+              rows="3"
+              [(ngModel)]="creatorProfile.education"
+            ></textarea>
+          </app-lens-form-field>
+
+          <app-lens-form-field
+            label="Professional experience"
+            forId="experience"
+          >
+            <textarea
+              id="experience"
+              class="lens-textarea"
+              rows="3"
+              [(ngModel)]="
+                creatorProfile.professionalExperience
+              "
+            ></textarea>
+          </app-lens-form-field>
+        </div>
+      </div>
+
+      <div class="edit-section">
+        <div class="edit-section-title">
+          LENS interpretation
+        </div>
+
+        <div class="edit-grid">
+          <app-lens-form-field
+            label="Relevant expertise"
+            forId="expertise"
+          >
+            <textarea
+              id="expertise"
+              class="lens-textarea"
+              rows="3"
+              [(ngModel)]="
+                creatorProfile.relevantExpertise
+              "
+            ></textarea>
+          </app-lens-form-field>
+
+          <app-lens-form-field
+            label="Perspective"
+            forId="lens-perspective"
+          >
+            <input
+              id="lens-perspective"
+              class="lens-input"
+              type="text"
+              [(ngModel)]="
+                creatorProfile.perspective
+              "
+            />
+          </app-lens-form-field>
+
+          <div class="edit-field full-width">
+            <app-lens-form-field
+              label="Evidence style"
+              forId="evidence-style"
+            >
+              <textarea
+                id="evidence-style"
+                class="lens-textarea"
+                rows="3"
+                [(ngModel)]="
+                  creatorProfile.evidenceStyle
+                "
+              ></textarea>
+            </app-lens-form-field>
+          </div>
+        </div>
+      </div>
+
+      <div class="edit-section user-section">
+        <div class="edit-section-title">
+          Your classification
+        </div>
+
+        <p class="edit-help">
+          Tell LENS how you personally want to use this
+          source. This does not change what the creator
+          or LENS says about the source.
+        </p>
+
+        <div class="edit-grid">
+          <app-lens-form-field
+            label="Perspective I use this source for"
+            forId="user-perspective"
+          >
+            <input
+              id="user-perspective"
+              class="lens-input"
+              type="text"
+              [(ngModel)]="
+                creatorProfile.userPerspective
+              "
+              placeholder="e.g. Female perspective"
+            />
+          </app-lens-form-field>
+
+          <app-lens-form-field
+            label="Relevant to me for"
+            forId="user-relevant"
+          >
+            <input
+              id="user-relevant"
+              class="lens-input"
+              type="text"
+              [(ngModel)]="
+                creatorProfile.userRelevantFor
+              "
+              placeholder="e.g. Relationships, attraction"
+            />
+          </app-lens-form-field>
+
+          <div class="edit-field full-width">
+            <app-lens-form-field
+              label="My notes"
+              forId="user-notes"
+              hint="Why do I follow this source? What do I want from it?"
+            >
+              <textarea
+                id="user-notes"
+                class="lens-textarea"
+                rows="4"
+                [(ngModel)]="
+                  creatorProfile.userNotes
+                "
+                placeholder="Your personal reason for following this source..."
+              ></textarea>
+            </app-lens-form-field>
+          </div>
+        </div>
+      </div>
+
+      <div class="verification-note">
+        <strong>Remember:</strong>
+
+        creator claims, independently sourced information,
+        LENS interpretation and your classification remain
+        separate.
+      </div>
+    }
+
+    <!-- =======================================================
+         5. PROCESSING OPTIONS
+    ======================================================== -->
+
+    @if (addSourceStep === 'processing') {
+      <div class="backfill-options">
+        <button
+          type="button"
+          class="backfill-option"
+          [class.active]="
+            selectedBackfill === 'recent'
+          "
+          (click)="selectBackfill('recent')"
+        >
+          <strong>Recent content</strong>
+
+          <span>
+            Start with recent uploads.
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="backfill-option"
+          [class.active]="
+            selectedBackfill === 'playlists'
+          "
+          (click)="selectBackfill('playlists')"
+        >
+          <strong>Selected playlists</strong>
+
+          <span>
+            Choose the series you care about.
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="backfill-option"
+          [class.active]="
+            selectedBackfill === 'selected'
+          "
+          (click)="selectBackfill('selected')"
+        >
+          <strong>Selected content</strong>
+
+          <span>
+            Choose specific videos or episodes.
+          </span>
+        </button>
+
+        <button
+          type="button"
+          class="backfill-option"
+          [class.active]="
+            selectedBackfill === 'all'
+          "
+          (click)="selectBackfill('all')"
+        >
+          <strong>Entire available history</strong>
+
+          <span>
+            Build the broadest source knowledge base.
+          </span>
+        </button>
+      </div>
+
+      <div class="processing-note">
+        <strong>No media downloads.</strong>
+
+        LENS stores source links, metadata and extracted
+        knowledge.
+      </div>
+    }
+
+    <!-- =======================================================
+         COMMON FOOTER
+
+         Notice: the modal itself owns the footer.
+         These are only the feature-specific actions.
+    ======================================================== -->
+
+    <div lens-modal-footer>
+
+      @if (addSourceStep === 'input') {
+        <app-lens-button
+          variant="secondary"
+          type="button"
+          (click)="closeAddSource()"
+        >
+          Cancel
+        </app-lens-button>
+
+        <app-lens-button
+          variant="primary"
+          type="button"
+          [disabled]="!sourceUrl.trim()"
+          (click)="analyzeSource()"
+        >
+          Analyze source
+        </app-lens-button>
+      }
+
+      @if (addSourceStep === 'analyzing') {
+        <app-lens-button
+          variant="secondary"
+          type="button"
+          [disabled]="true"
+          [loading]="true"
+        >
+          Analyzing…
+        </app-lens-button>
+      }
+
+      @if (addSourceStep === 'error') {
+        <app-lens-button
+          variant="secondary"
+          type="button"
+          (click)="closeAddSource()"
+        >
+          Cancel
+        </app-lens-button>
+
+        <app-lens-button
+          variant="primary"
+          type="button"
+          (click)="returnToSourceInput()"
+        >
+          Try again
+        </app-lens-button>
+      }
+
+      @if (
+        addSourceStep === 'profile' &&
+        creatorProfile
+      ) {
+        <app-lens-button
+          variant="secondary"
+          type="button"
+          (click)="editProfile()"
+        >
+          Review / edit
+        </app-lens-button>
+
+        <app-lens-button
+          variant="primary"
+          type="button"
+          (click)="confirmProfile()"
+        >
+          Accept profile
+        </app-lens-button>
+      }
+
+      @if (
+        addSourceStep === 'editing' &&
+        creatorProfile
+      ) {
+        <app-lens-button
+          variant="secondary"
+          type="button"
+          (click)="cancelProfileEdits()"
+        >
+          Cancel
+        </app-lens-button>
+
+        <app-lens-button
+          variant="primary"
+          type="button"
+          (click)="saveProfileEdits()"
+        >
+          Save changes
+        </app-lens-button>
+      }
+
+      @if (addSourceStep === 'processing') {
+        <app-lens-button
+          variant="secondary"
+          type="button"
+          (click)="addSourceStep = 'profile'"
+        >
+          Back
+        </app-lens-button>
+
+        <app-lens-button
+          variant="primary"
+          type="button"
+          (click)="startProcessing()"
+        >
+          Start learning
+        </app-lens-button>
+      }
+
+    </div>
+
+  </app-lens-modal>
+</section>

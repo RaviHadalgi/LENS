@@ -1,0 +1,28 @@
+<div class="lens-form-field">
+  @if (label) {
+    <label
+      class="lens-form-label"
+      [attr.for]="forId || null"
+    >
+      {{ label }}
+
+      @if (required) {
+        <span class="required-mark" aria-hidden="true">*</span>
+      }
+    </label>
+  }
+
+  <div class="lens-form-control">
+    <ng-content></ng-content>
+  </div>
+
+  @if (error) {
+    <div class="lens-form-error" role="alert">
+      {{ error }}
+    </div>
+  } @else if (hint) {
+    <div class="lens-form-hint">
+      {{ hint }}
+    </div>
+  }
+</div>

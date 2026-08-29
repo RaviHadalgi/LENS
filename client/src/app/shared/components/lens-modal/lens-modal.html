@@ -1,0 +1,44 @@
+@if (open) {
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    (click)="onBackdropClick()"
+  >
+    <section
+      class="modal-container"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="title"
+      (click)="onModalClick($event)"
+    >
+      <header class="modal-header">
+        <div class="modal-header-content">
+          @if (title) {
+            <h2>{{ title }}</h2>
+          }
+
+          @if (description) {
+            <p>{{ description }}</p>
+          }
+        </div>
+
+        <button
+          class="close-button"
+          type="button"
+          aria-label="Close dialog"
+          (click)="close()"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <ng-content></ng-content>
+      </div>
+
+      <footer class="modal-footer">
+        <ng-content select="[lens-modal-footer]"></ng-content>
+      </footer>
+    </section>
+  </div>
+}

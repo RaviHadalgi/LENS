@@ -1,0 +1,28 @@
+<article class="source-card">
+  <div class="source-header">
+    <div class="source-identity">
+      <div class="source-name">
+        {{ source.creator }}
+      </div>
+
+      <div class="source-perspective">
+        {{ source.perspective }}
+      </div>
+    </div>
+
+    <app-lens-badge tone="info">
+      {{ source.context }}
+    </app-lens-badge>
+  </div>
+
+  <div class="source-statement">
+    {{ source.statement }}
+  </div>
+
+  <button
+    class="source-link"
+    type="button"
+  >
+    Source · {{ source.timestamp }} ↗
+  </button>
+</article>

@@ -1,0 +1,18 @@
+<button
+  [type]="type"
+  [disabled]="disabled || loading"
+  [class]="'lens-button lens-button-' + variant + ' lens-button-' + size"
+  [class.lens-button-full]="fullWidth"
+>
+  @if (loading) {
+    <span class="button-spinner" aria-hidden="true"></span>
+  }
+
+  <span [class.button-content-hidden]="loading">
+    <ng-content></ng-content>
+  </span>
+
+  @if (loading) {
+    <span class="visually-hidden">Loading</span>
+  }
+</button>

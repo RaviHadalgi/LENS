@@ -1,0 +1,39 @@
+:host {
+  display: block;
+}
+
+.lens-form-field {
+  width: 100%;
+}
+
+.lens-form-label {
+  display: block;
+  margin-bottom: 7px;
+  color: #4a5360;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.required-mark {
+  margin-left: 3px;
+  color: #b42318;
+}
+
+.lens-form-control {
+  width: 100%;
+}
+
+.lens-form-hint,
+.lens-form-error {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.lens-form-hint {
+  color: #7b8490;
+}
+
+.lens-form-error {
+  color: #b42318;
+}

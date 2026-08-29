@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+.topbar {
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 32px;
+  border-bottom: 1px solid #e5e8ed;
+  background: rgba(247, 248, 250, 0.92);
+}
+
+.page-title {
+  color: #17202a;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.page-subtitle {
+  margin-top: 3px;
+  color: #7a838f;
+  font-size: 13px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid #dde2e7;
+  border-radius: 999px;
+  background: #fff;
+  color: #626b77;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f8f58;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    padding-inline: 18px;
+  }
+
+  .status-pill {
+    display: none;
+  }
+}
