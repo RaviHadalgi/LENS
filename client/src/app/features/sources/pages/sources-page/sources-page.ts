@@ -79,7 +79,7 @@ export class SourcesPage {
   addSourceStep: AddSourceStep = 'input';
 
   analysisError = '';
-
+  avatarImageFailed = false;
   private readonly api = inject(LensApiService);
 
   private readonly changeDetector =

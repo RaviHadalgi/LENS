@@ -49,21 +49,132 @@ export class YouTubeSourceProvider implements SourceProvider {
     this.fetchImplementation = options.fetchImplementation ?? fetch;
   }
 
-  async getMetadata(source: DetectedSource): Promise<SourceMetadataResult> {
-    if (source.type === "channel") {
-      return this.unavailable(
-        "Channel profile metadata is not resolved from RSS alone. Use channel sync for video discovery.",
-      );
-    }
-
-    if (source.type !== "video") {
-      return this.unavailable(
-        "This source type does not expose metadata through this provider.",
-      );
-    }
-
-    return this.getVideoMetadata(source);
+async getMetadata(source: DetectedSource): Promise<SourceMetadataResult> {
+  if (source.type === "channel") {
+    return this.getChannelMetadata(source);
   }
+
+  if (source.type !== "video") {
+    return this.unavailable(
+      "This source type does not expose metadata through this provider.",
+    );
+  }
+
+  return this.getVideoMetadata(source);
+}
+
+private async getChannelMetadata(
+  source: DetectedSource,
+): Promise<SourceMetadataResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS,
+  );
+
+  try {
+    const response = await this.fetchImplementation(source.url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+      },
+    });
+
+    if (!response.ok) {
+      return this.unavailable(
+        `YouTube channel metadata could not be retrieved (HTTP ${response.status}).`,
+      );
+    }
+
+    const html = await response.text();
+
+    const channelId = this.extractChannelId(html);
+
+    const name =
+      this.extractMetaContent(html, "name", "title") ??
+      this.extractMetaContent(html, "property", "og:title");
+
+    const description =
+      this.extractMetaContent(html, "name", "description") ??
+      this.extractMetaContent(
+        html,
+        "property",
+        "og:description",
+      );
+
+    const thumbnailUrl =
+      this.extractMetaContent(
+        html,
+        "property",
+        "og:image",
+      );
+
+    if (!channelId || !name) {
+      return this.unavailable(
+        "Channel metadata could not be extracted from the public YouTube channel page.",
+      );
+    }
+
+    const handle =
+      source.channelLookup?.kind === "handle"
+        ? source.channelLookup.value
+        : null;
+
+    const fetchedAt = new Date().toISOString();
+
+    return {
+      status: "available",
+      metadata: null,
+      channel: {
+        platform: "youtube",
+        channelId,
+        handle,
+        name,
+        description,
+        thumbnailUrl,
+        subscriberCount: null,
+        hiddenSubscriberCount: null,
+        videoCount: null,
+        viewCount: null,
+        country: null,
+        createdAt: null,
+        uploadsPlaylistId: null,
+        sourceUrl: source.url,
+        provider: "YouTube",
+        fetchedAt,
+      },
+      message: null,
+    };
+  } catch {
+    return this.unavailable(
+      "Channel metadata could not be retrieved from the public YouTube channel page.",
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+private extractMetaContent(
+  html: string,
+  attribute: "name" | "property",
+  value: string,
+): string | null {
+  const escapedValue = value.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+
+  const pattern = new RegExp(
+    `<meta[^>]+${attribute}=["']${escapedValue}["'][^>]+content=["']([^"']*)["']`,
+    "i",
+  );
+
+  const match = html.match(pattern);
+
+  return match?.[1]?.trim() || null;
+}
 
   async syncChannel(
     source: DetectedSource,
@@ -357,22 +468,22 @@ export class YouTubeSourceProvider implements SourceProvider {
     }
   }
 
-  private extractChannelId(html: string): string | null {
-    const patterns = [
-      /<meta[^>]+itemprop=["']channelId["'][^>]+content=["'](UC[a-zA-Z0-9_-]{20,})["']/i,
-      /"channelId"\s*:\s*"((?:UC)[a-zA-Z0-9_-]{20,})"/,
-      /\\"channelId\\"\s*:\s*\\"((?:UC)[a-zA-Z0-9_-]{20,})\\"/,
-      /"externalId"\s*:\s*"((?:UC)[a-zA-Z0-9_-]{20,})"/,
-    ];
+private extractChannelId(html: string): string | null {
+  const patterns = [
+    /<meta[^>]+itemprop=["']channelId["'][^>]+content=["'](UC[a-zA-Z0-9_-]+)["']/i,
+    /"channelId"\s*:\s*"((?:UC)[a-zA-Z0-9_-]+)"/,
+    /\\"channelId\\"\s*:\s*\\"((?:UC)[a-zA-Z0-9_-]+)\\"/,
+    /"externalId"\s*:\s*"((?:UC)[a-zA-Z0-9_-]+)"/,
+  ];
 
-    for (const pattern of patterns) {
-      const match = html.match(pattern);
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
 
-      if (match?.[1]) {
-        return match[1];
-      }
+    if (match?.[1]) {
+      return match[1];
     }
-
-    return null;
   }
+
+  return null;
+}
 }

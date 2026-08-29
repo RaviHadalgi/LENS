@@ -5,14 +5,24 @@ import { SourceService } from './source.service';
 
 const sourceService = new SourceService();
 
-test('detects an @handle channel URL without attempting a keyless channel lookup', async () => {
-  const result = await sourceService.analyzeUrl('https://youtube.com/@OpenAI');
+test('resolves an @handle channel URL from public YouTube metadata', async () => {
+  const result = await sourceService.analyzeUrl(
+    'https://youtube.com/@OpenAI',
+  );
 
   assert.equal(result.status, 'detected');
   assert.equal(result.type, 'channel');
   assert.equal(result.externalId, '@OpenAI');
-  assert.equal(result.channel, null);
-  assert.equal(result.metadataStatus, 'unavailable');
+
+  assert.ok(result.channel);
+  assert.equal(
+    result.channel.channelId,
+    'UCXZCJLdBC09xxGZ6gcdrc6A',
+  );
+  assert.equal(result.channel.handle, '@OpenAI');
+  assert.equal(result.channel.name, 'OpenAI');
+
+  assert.equal(result.metadataStatus, 'available');
 });
 
 test('detects a canonical YouTube channel ID URL', async () => {

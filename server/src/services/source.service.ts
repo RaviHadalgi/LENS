@@ -8,10 +8,16 @@ import type {
 import { SourceProviderRegistry } from './source-providers/source-provider-registry';
 import type { YouTubeChannelLookup } from './source-providers/source-provider';
 import { YouTubeSourceProvider } from './source-providers/youtube-source.provider';
-
-const providerRegistry = new SourceProviderRegistry([new YouTubeSourceProvider()]);
-
 export class SourceService {
+    private readonly providerRegistry: SourceProviderRegistry;
+
+  constructor(
+    providerRegistry: SourceProviderRegistry = new SourceProviderRegistry([
+      new YouTubeSourceProvider(),
+    ]),
+  ) {
+    this.providerRegistry = providerRegistry;
+  }
   async analyzeUrl(url: string): Promise<AnalyzeSourceResponse> {
     const normalizedUrl = url.trim();
 
@@ -97,7 +103,7 @@ export class SourceService {
       channelLookup: result.channelLookup,
     } as const;
 
-    const metadataResult = await providerRegistry.getMetadata(detectedSource);
+    const metadataResult = await this.providerRegistry.getMetadata(detectedSource);
 
     return {
       ...detectedSource,

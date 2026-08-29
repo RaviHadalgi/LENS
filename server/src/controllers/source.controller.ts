@@ -16,7 +16,7 @@ export async function analyzeSource(req: Request, res: Response): Promise<void> 
   }
 
   const result = await sourceService.analyzeUrl(body.url);
-  if (
+if (
   result.platform === 'youtube' &&
   result.type === 'channel' &&
   result.status === 'detected'
@@ -26,15 +26,7 @@ export async function analyzeSource(req: Request, res: Response): Promise<void> 
   res.status(sync.status === 'failed' ? 422 : 200).json({
     ...result,
     sync,
-    metadataStatus:
-      result.metadataStatus === 'available'
-        ? result.metadataStatus
-        : 'unavailable',
-    metadataMessage:
-      result.metadataMessage ??
-      sync.message,
-    channel: null,
-    creatorIdentity: null,
+    metadataMessage: result.metadataMessage ?? sync.message,
   });
 
   return;

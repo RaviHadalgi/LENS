@@ -222,13 +222,14 @@
     ) {
       <div class="profile-header">
         <div class="profile-avatar">
-          @if (creatorProfile.avatarUrl) {
+          @if (creatorProfile.avatarUrl && !avatarImageFailed) {
             <img
               [src]="creatorProfile.avatarUrl"
               [alt]="creatorProfile.name + ' channel avatar'"
+              (error)="avatarImageFailed = true"
             />
           } @else {
-            {{ creatorProfile.name.charAt(0) }}
+            {{ creatorProfile.name.charAt(0).toUpperCase() }}
           }
         </div>
 

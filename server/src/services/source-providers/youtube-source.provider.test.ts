@@ -80,6 +80,95 @@ test('reads channel RSS/Atom entries for a channel ID', async () => {
   });
 });
 
+test('resolves channel metadata from a public YouTube channel page', async () => {
+  const provider = new YouTubeSourceProvider({
+    fetchImplementation: (async (input) => {
+      const url = String(input);
+
+      assert.match(url, /youtube\.com\/@OpenAI/);
+
+      return response(
+        200,
+        `
+        <html>
+          <head>
+            <meta itemprop="channelId" content="UCtest">
+            <meta name="title" content="OpenAI">
+            <meta name="description" content="Official OpenAI channel">
+            <meta property="og:image" content="https://example.com/openai.jpg">
+          </head>
+        </html>
+        `,
+        'text/html',
+      );
+    }) as typeof fetch,
+  });
+
+  const result = await provider.getMetadata({
+    platform: 'youtube',
+    type: 'channel',
+    url: 'https://www.youtube.com/@OpenAI',
+    externalId: '@OpenAI',
+    channelLookup: {
+      kind: 'handle',
+      value: '@OpenAI',
+    },
+  });
+
+  assert.equal(result.status, 'available');
+  assert.ok(result.channel);
+
+  assert.equal(result.channel.platform, 'youtube');
+  assert.equal(result.channel.channelId, 'UCtest');
+  assert.equal(result.channel.handle, '@OpenAI');
+  assert.equal(result.channel.name, 'OpenAI');
+  assert.equal(
+    result.channel.description,
+    'Official OpenAI channel',
+  );
+  assert.equal(
+    result.channel.thumbnailUrl,
+    'https://example.com/openai.jpg',
+  );
+  assert.equal(result.channel.sourceUrl, 'https://www.youtube.com/@OpenAI');
+  assert.equal(result.channel.provider, 'YouTube');
+  assert.ok(result.channel.fetchedAt);
+
+  assert.equal(result.metadata, null);
+  assert.equal(result.message, null);
+});
+
+
+test('reports unavailable when channel metadata cannot be extracted', async () => {
+  const provider = new YouTubeSourceProvider({
+    fetchImplementation: (async () =>
+      response(
+        200,
+        '<html><head><title>YouTube</title></head></html>',
+        'text/html',
+      )) as typeof fetch,
+  });
+
+  const result = await provider.getMetadata({
+    platform: 'youtube',
+    type: 'channel',
+    url: 'https://www.youtube.com/channel/UCtest',
+    externalId: 'UCtest',
+    channelLookup: {
+      kind: 'channel-id',
+      value: 'UCtest',
+    },
+  });
+
+  assert.equal(result.status, 'unavailable');
+  assert.equal(result.channel, null);
+  assert.equal(result.metadata, null);
+  assert.match(
+    result.message ?? '',
+    /channel metadata/i,
+  );
+});
+
 test('does not pretend a handle is a channel ID when using RSS only', async () => {
   let called = false;
   const provider = new YouTubeSourceProvider({
