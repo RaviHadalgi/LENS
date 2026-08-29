@@ -239,7 +239,10 @@ export class YouTubeSyncService {
           status: "discovered" as const,
         };
 
-        await this.store.upsertVideo(discoveredVideo);
+        await this.store.upsertVideo(
+          sourceKey,
+          discoveredVideo,
+        );
         discovered.push(discoveredVideo);
       }
     } catch {

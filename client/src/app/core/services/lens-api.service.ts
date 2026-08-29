@@ -45,22 +45,7 @@ export interface AnalyzeSourceResponse {
   } | null;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
-export class LensApiService {
-  private readonly http = inject(HttpClient);
 
-  private readonly baseUrl = 'http://localhost:3000/api';
-
-  analyzeSource(url: string): Observable<AnalyzeSourceResponse> {
-    return this.http.post<AnalyzeSourceResponse>(`${this.baseUrl}/sources/analyze`, { url });
-  }
-
-  syncYouTubeChannel(url: string): Observable<YouTubeSyncResponse> {
-    return this.http.post<YouTubeSyncResponse>(`${this.baseUrl}/sources/youtube/sync`, { url });
-  }
-}
 export interface YouTubeSyncResponse {
   platform: 'youtube';
   type: 'channel';
@@ -101,4 +86,44 @@ export interface YouTubeSyncResponse {
     status?: string;
   }>;
   message: string | null;
+}
+export interface SourceAccount {
+  sourceKey: string;
+  platform: 'youtube';
+  sourceType: SourceType;
+  externalId: string;
+  url: string;
+  handle: string | null;
+  status: 'active' | 'needs-review' | 'failed';
+  lastCheckedAt: string | null;
+  lastSuccessfulSyncAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListSourcesResponse {
+  sources: SourceAccount[];
+}
+
+
+
+@Injectable({
+  providedIn: 'root',
+})
+export class LensApiService {
+  private readonly http = inject(HttpClient);
+
+  private readonly baseUrl = 'http://localhost:3000/api';
+
+  analyzeSource(url: string): Observable<AnalyzeSourceResponse> {
+    return this.http.post<AnalyzeSourceResponse>(`${this.baseUrl}/sources/analyze`, { url });
+  }
+
+  syncYouTubeChannel(url: string): Observable<YouTubeSyncResponse> {
+    return this.http.post<YouTubeSyncResponse>(`${this.baseUrl}/sources/youtube/sync`, { url });
+  }
+
+  listSources(): Observable<ListSourcesResponse> {
+    return this.http.get<ListSourcesResponse>(`${this.baseUrl}/sources`);
+  }
 }

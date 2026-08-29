@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { timeout } from 'rxjs';
 
@@ -9,22 +9,11 @@ import { LensFormField } from '../../../../shared/components/lens-form-field/len
 import { LensButton } from '../../../../shared/components/lens-button/lens-button';
 import { LensApiService } from '../../../../core/services/lens-api.service';
 
-import type {
-  SourceType,
-  AnalyzeSourceResponse,
-} from '../../../../core/services/lens-api.service';
+import type { SourceType, AnalyzeSourceResponse } from '../../../../core/services/lens-api.service';
 
-type AddSourceStep =
-  | 'input'
-  | 'analyzing'
-  | 'error'
-  | 'profile'
-  | 'editing'
-  | 'processing';
+type AddSourceStep = 'input' | 'analyzing' | 'error' | 'profile' | 'editing' | 'processing';
 
-type IdentityStatus =
-  | 'high-confidence'
-  | 'needs-review';
+type IdentityStatus = 'high-confidence' | 'needs-review';
 
 interface Source {
   name: string;
@@ -57,18 +46,11 @@ interface CreatorProfile {
 
 @Component({
   selector: 'app-sources-page',
-  imports: [
-    FormsModule,
-    LensModal,
-    LensButton,
-    LensFormField,
-    LensBadge,
-    LensCard,
-  ],
+  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.css',
 })
-export class SourcesPage {
+export class SourcesPage implements OnInit {
   showAddSource = false;
 
   selectedType: SourceType = 'channel';
@@ -81,41 +63,50 @@ export class SourcesPage {
   avatarImageFailed = false;
   private readonly api = inject(LensApiService);
 
-  private readonly changeDetector =
-    inject(ChangeDetectorRef);
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
-  selectedBackfill:
-    | 'recent'
-    | 'playlists'
-    | 'all'
-    | 'selected' = 'recent';
+  selectedBackfill: 'recent' | 'playlists' | 'all' | 'selected' = 'recent';
 
   creatorProfile: CreatorProfile | null = null;
 
-  readonly sources: Source[] = [
-    {
-      name: 'Flourish with Laurin',
-      perspective: 'Female / lived experience',
-      contentCount: 143,
-      conceptCount: 87,
-      status: 'verified',
-    },
-    {
-      name: 'Rajneesh Kumar',
-      perspective: 'Male development / counseling',
-      contentCount: 216,
-      conceptCount: 132,
-      status: 'review',
-    },
-    {
-      name: 'Andrew Huberman',
-      perspective: 'Neuroscience / research-oriented',
-      contentCount: 198,
-      conceptCount: 341,
-      status: 'verified',
-    },
-  ];
+  sources: Source[] = [];
+  sourcesLoading = false;
+  sourcesError = '';
 
+  ngOnInit(): void {
+    this.loadSources();
+  }
+  private loadSources(): void {
+    this.sourcesLoading = true;
+    this.sourcesError = '';
+
+    this.api.listSources().subscribe({
+      next: (result) => {
+        this.sources = result.sources.map((source) => ({
+          name: source.handle?.replace(/^@/, '') || source.externalId,
+
+          perspective: 'YouTube source',
+
+          contentCount: 0,
+          conceptCount: 0,
+
+          status: source.status === 'active' ? 'verified' : 'review',
+        }));
+
+        this.sourcesLoading = false;
+        this.changeDetector.detectChanges();
+      },
+
+      error: (error) => {
+        console.error('Failed to load sources:', error);
+
+        this.sourcesLoading = false;
+        this.sourcesError = 'Unable to load your sources. Confirm the server is running.';
+
+        this.changeDetector.detectChanges();
+      },
+    });
+  }
   get modalTitle(): string {
     switch (this.addSourceStep) {
       case 'input':
@@ -197,13 +188,7 @@ export class SourcesPage {
     this.selectedType = type;
   }
 
-  selectBackfill(
-    option:
-      | 'recent'
-      | 'playlists'
-      | 'all'
-      | 'selected',
-  ): void {
+  selectBackfill(option: 'recent' | 'playlists' | 'all' | 'selected'): void {
     this.selectedBackfill = option;
   }
 
@@ -227,10 +212,7 @@ export class SourcesPage {
         },
 
         error: (error) => {
-          console.error(
-            'Source analysis failed:',
-            error,
-          );
+          console.error('Source analysis failed:', error);
 
           this.analysisError =
             'LENS did not receive a usable response. Confirm the server is running, then try again.';
@@ -242,14 +224,9 @@ export class SourcesPage {
       });
   }
 
-  private handleSourceAnalysis(
-    result: AnalyzeSourceResponse,
-  ): void {
+  private handleSourceAnalysis(result: AnalyzeSourceResponse): void {
     if (result.status !== 'detected') {
-      console.warn(
-        'Source could not be detected:',
-        result,
-      );
+      console.warn('Source could not be detected:', result);
 
       this.analysisError =
         result.status === 'unsupported'
@@ -266,11 +243,7 @@ export class SourcesPage {
     /*
      * Always trust the backend's detected source type.
      */
-    if (
-      result.type === 'channel' ||
-      result.type === 'playlist' ||
-      result.type === 'video'
-    ) {
+    if (result.type === 'channel' || result.type === 'playlist' || result.type === 'video') {
       this.selectedType = result.type;
     }
 
@@ -278,14 +251,13 @@ export class SourcesPage {
      * Videos and playlists continue using the
      * metadata returned by the analysis endpoint.
      */
-      this.creatorProfile =
-        this.buildDraftCreatorProfile(result);
+    this.creatorProfile = this.buildDraftCreatorProfile(result);
 
-      this.sourceUrl = result.url;
+    this.sourceUrl = result.url;
 
-      this.addSourceStep = 'profile';
+    this.addSourceStep = 'profile';
 
-      this.changeDetector.detectChanges();
+    this.changeDetector.detectChanges();
   }
 
   returnToSourceInput(): void {
@@ -315,10 +287,7 @@ export class SourcesPage {
       return;
     }
 
-    console.log(
-      'Profile saved:',
-      this.creatorProfile,
-    );
+    console.log('Profile saved:', this.creatorProfile);
 
     this.addSourceStep = 'profile';
   }
@@ -328,27 +297,20 @@ export class SourcesPage {
   }
 
   startProcessing(): void {
-    console.log(
-      'LENS processing started',
-      {
-        sourceType: this.selectedType,
-        sourceUrl: this.sourceUrl,
-        backfill: this.selectedBackfill,
-        creatorProfile: this.creatorProfile,
-      },
-    );
+    console.log('LENS processing started', {
+      sourceType: this.selectedType,
+      sourceUrl: this.sourceUrl,
+      backfill: this.selectedBackfill,
+      creatorProfile: this.creatorProfile,
+    });
 
     this.closeAddSource();
   }
 
-  private buildDraftCreatorProfile(
-    result: AnalyzeSourceResponse,
-  ): CreatorProfile {
-    const identity =
-      result.creatorIdentity;
+  private buildDraftCreatorProfile(result: AnalyzeSourceResponse): CreatorProfile {
+    const identity = result.creatorIdentity;
 
-    const channel =
-      result.channel;
+    const channel = result.channel;
 
     return {
       /*
@@ -358,20 +320,13 @@ export class SourcesPage {
        * 2. Creator identity returned by backend
        * 3. Safe unresolved fallback
        */
-      name:
-        channel?.name ??
-        identity?.displayName ??
-        'Creator identity not yet resolved',
+      name: channel?.name ?? identity?.displayName ?? 'Creator identity not yet resolved',
 
-      sourceType:
-        this.selectedType,
+      sourceType: this.selectedType,
 
-      sourceUrl:
-        result.url,
+      sourceUrl: result.url,
 
-      avatarUrl:
-        channel?.thumbnailUrl ??
-        null,
+      avatarUrl: channel?.thumbnailUrl ?? null,
 
       /*
        * If the backend has actual channel metadata,
@@ -389,37 +344,27 @@ export class SourcesPage {
        * These remain deliberately conservative until
        * LENS has actual source-content analysis.
        */
-      relevantExpertise:
-        'Not yet verified',
+      relevantExpertise: 'Not yet verified',
 
-      education:
-        'Not provided or independently verified',
+      education: 'Not provided or independently verified',
 
-      professionalExperience:
-        'Not provided or independently verified',
+      professionalExperience: 'Not provided or independently verified',
 
-      perspective:
-        'To be classified by you',
+      perspective: 'To be classified by you',
 
-      evidenceStyle:
-        'To be assessed from source content',
+      evidenceStyle: 'To be assessed from source content',
 
       /*
        * User classification remains separate from
        * source-derived information.
        */
-      userPerspective:
-        '',
+      userPerspective: '',
 
-      userRelevantFor:
-        '',
+      userRelevantFor: '',
 
-      userNotes:
-        '',
+      userNotes: '',
 
-      identityStatus:
-        identity?.status ??
-        'needs-review',
+      identityStatus: identity?.status ?? 'needs-review',
     };
   }
 }

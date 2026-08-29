@@ -1,9 +1,14 @@
 import { Router } from 'express';
 
-import { analyzeSource, syncYouTubeChannel } from '../controllers/source.controller';
+import {
+  analyzeSource,
+  listSources,
+  syncYouTubeChannel,
+} from '../controllers/source.controller';
 
 const router = Router();
 
+router.get('/', listSources);
 router.post('/analyze', analyzeSource);
 router.post('/youtube/sync', syncYouTubeChannel);
 
