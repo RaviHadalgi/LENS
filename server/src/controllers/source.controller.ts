@@ -5,10 +5,10 @@ import { SourceService } from '../services/source.service';
 
 const sourceService = new SourceService();
 
-export function analyzeSource(
+export async function analyzeSource(
   req: Request,
   res: Response,
-): void {
+): Promise<void> {
   const body = req.body as Partial<AnalyzeSourceRequest>;
 
   if (typeof body.url !== 'string') {
@@ -20,7 +20,7 @@ export function analyzeSource(
     return;
   }
 
-  const result = sourceService.analyzeUrl(body.url);
+  const result = await sourceService.analyzeUrl(body.url);
 
   const statusCode =
     result.status === 'invalid'
