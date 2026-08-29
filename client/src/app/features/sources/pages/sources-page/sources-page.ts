@@ -12,7 +12,6 @@ import { LensApiService } from '../../../../core/services/lens-api.service';
 import type {
   SourceType,
   AnalyzeSourceResponse,
-  YouTubeSyncResponse,
 } from '../../../../core/services/lens-api.service';
 
 type AddSourceStep =
@@ -276,227 +275,17 @@ export class SourcesPage {
     }
 
     /*
-     * YouTube channels require one additional step.
-     *
-     * /sources/analyze:
-     *   detects @OpenAI
-     *
-     * /sources/youtube/sync:
-     *   resolves @OpenAI
-     *   -> UCXZCJLdBC09xxGZ6gcdrc6A
-     *
-     * The successful sync result is then used to
-     * build the creator profile shown to the user.
-     */
-    if (
-      result.platform === 'youtube' &&
-      result.type === 'channel'
-    ) {
-      this.addSourceStep = 'analyzing';
-
-      this.changeDetector.detectChanges();
-
-      this.api
-        .syncYouTubeChannel(result.url)
-        .pipe(timeout(10_000))
-        .subscribe({
-          next: (syncResult) => {
-            this.handleYouTubeSyncResult(
-              result,
-              syncResult,
-            );
-          },
-
-          error: (error) => {
-            console.error(
-              'YouTube channel sync failed:',
-              error,
-            );
-
-            this.analysisError =
-              'LENS could not resolve this YouTube channel. Try again.';
-
-            this.addSourceStep = 'error';
-
-            this.changeDetector.detectChanges();
-          },
-        });
-
-      return;
-    }
-
-    /*
      * Videos and playlists continue using the
      * metadata returned by the analysis endpoint.
      */
-    this.creatorProfile =
-      this.buildDraftCreatorProfile(result);
-
-    this.addSourceStep = 'profile';
-
-    this.changeDetector.detectChanges();
-  }
-
-  private handleYouTubeSyncResult(
-    analysis: AnalyzeSourceResponse,
-    sync: YouTubeSyncResponse,
-  ): void {
-    /*
-     * A failed sync means we could not resolve the
-     * channel sufficiently to continue.
-     */
-    if (
-      sync.status === 'failed' ||
-      !sync.channelId
-    ) {
-      console.warn(
-        'YouTube channel could not be resolved:',
-        sync,
-      );
-
-      this.analysisError =
-        sync.message ??
-        'LENS could not resolve the YouTube channel. Try again.';
-
-      this.addSourceStep = 'error';
-
-      this.changeDetector.detectChanges();
-
-      return;
-    }
-
-    /*
-     * The resolver deliberately reports needs-review
-     * when it cannot establish a stable channel ID.
-     */
-    if (sync.status === 'needs-review') {
-      console.warn(
-        'YouTube channel needs review:',
-        sync,
-      );
-
       this.creatorProfile =
-        this.buildDraftCreatorProfile(analysis);
+        this.buildDraftCreatorProfile(result);
 
-      this.analysisError =
-        sync.message ??
-        'The YouTube channel needs review before it can be added.';
+      this.sourceUrl = result.url;
 
       this.addSourceStep = 'profile';
 
       this.changeDetector.detectChanges();
-
-      return;
-    }
-
-    /*
-     * SUCCESS
-     *
-     * Example:
-     *
-     * sync.handle
-     *   = "@OpenAI"
-     *
-     * sync.channelId
-     *   = "UCXZCJLdBC09xxGZ6gcdrc6A"
-     *
-     * The channel ID is the stable identity.
-     * The handle is the human-readable source label.
-     *
-     * We intentionally keep identityStatus as
-     * needs-review because resolving a public YouTube
-     * channel is not the same as independently verifying
-     * the creator's real-world identity.
-     */
-
-    const displayName =
-      this.channelDisplayName(
-        sync.handle,
-        sync.channelId,
-      );
-
-    const resolvedAnalysis: AnalyzeSourceResponse = {
-      ...analysis,
-
-      /*
-       * Replace the original @handle external ID
-       * with the stable channel ID.
-       */
-      externalId: sync.channelId,
-
-      /*
-       * Replace the unresolved creator identity with
-       * the successfully resolved YouTube channel.
-       */
-      creatorIdentity: {
-        displayName,
-
-        profileUrl:
-          sync.url,
-
-        status: 'needs-review',
-
-        basis:
-          'YouTube channel resolved from the supplied public channel page. Creator identity remains subject to user review.',
-      },
-    };
-
-    /*
-     * The backend sync does not currently return full
-     * ChannelMetadata such as avatar/description/name.
-     *
-     * Therefore the UI uses the resolved handle for the
-     * profile name rather than showing:
-     *
-     * "Creator identity not yet resolved"
-     */
-    this.creatorProfile =
-      this.buildDraftCreatorProfile(
-        resolvedAnalysis,
-      );
-
-    /*
-     * Keep the canonical URL returned by the sync.
-     */
-    this.sourceUrl = sync.url;
-
-    this.addSourceStep = 'profile';
-
-    this.changeDetector.detectChanges();
-  }
-
-  private channelDisplayName(
-    handle: string | null,
-    channelId: string,
-  ): string {
-    /*
-     * @OpenAI -> OpenAI
-     *
-     * This is a display name derived from the public
-     * YouTube handle, not an independently verified
-     * real-world identity.
-     */
-    if (handle) {
-      const trimmed = handle.trim();
-
-      if (trimmed.startsWith('@')) {
-        const withoutAt = trimmed.slice(1).trim();
-
-        if (withoutAt) {
-          return withoutAt;
-        }
-      }
-
-      if (trimmed) {
-        return trimmed;
-      }
-    }
-
-    /*
-     * Never show the raw channel ID as the creator name
-     * unless there is genuinely no better source label.
-     */
-    return channelId;
   }
 
   returnToSourceInput(): void {
