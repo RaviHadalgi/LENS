@@ -1,66 +1,202 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import test from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 
 import { YouTubeSyncService } from './youtube-sync.service';
 import { YouTubeSyncStore } from './youtube-sync.store';
-import type { SourceProvider } from './source-providers/source-provider';
+import type {
+  YouTubeRecentVideo,
+  YouTubeSyncState,
+} from '../models/source.model';
+import type {
+  SourceProvider,
+  YouTubeSyncResult,
+} from './source-providers/source-provider';
 
-function providerFor(videos: Array<{ videoId: string; title: string; publishedAt: string }>): SourceProvider {
-  return {
-    platform: 'youtube',
-    getMetadata: async () => ({ status: 'unavailable', metadata: null, channel: null, message: null }),
-    syncChannel: async (source) => ({
-      status: 'completed',
-      channelId: source.channelLookup?.kind === 'channel-id' ? source.channelLookup.value : null,
-      handle: null,
-      channelUrl: source.url,
-      feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCtest',
-      videos: videos.map((video) => ({
-        ...video,
-        url: `https://www.youtube.com/watch?v=${video.videoId}`,
-      })),
+class FakeYouTubeProvider implements SourceProvider {
+  readonly platform = 'youtube' as const;
+
+  constructor(
+    private readonly videos: YouTubeRecentVideo[],
+    private readonly channelId = 'UCtest',
+  ) {}
+
+  async getMetadata() {
+    return {
+      status: 'unavailable' as const,
+      metadata: null,
+      channel: null,
       message: null,
-    }),
-  };
+    };
+  }
+
+  async resolveChannel() {
+    return {
+      channelId: this.channelId,
+      handle: '@test',
+      channelUrl: 'https://youtube.com/channel/UCtest',
+      message: null,
+    };
+  }
+
+  async syncChannel(): Promise<YouTubeSyncResult> {
+    return {
+      status: 'completed',
+      channelId: this.channelId,
+      handle: '@test',
+      channelUrl: 'https://youtube.com/channel/UCtest',
+      feedUrl:
+        `https://www.youtube.com/feeds/videos.xml?channel_id=${this.channelId}`,
+      videos: this.videos,
+      message: null,
+    };
+  }
 }
 
 test('persists source sync state and deduplicates by stable videoId', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'lens-youtube-sync-'));
-  const store = new YouTubeSyncStore(join(dir, 'state.json'));
-  const service = new YouTubeSyncService(store, [providerFor([
-    { videoId: 'A', title: 'A', publishedAt: '2026-08-28T00:00:00Z' },
-    { videoId: 'B', title: 'B', publishedAt: '2026-08-20T00:00:00Z' },
-  ])]);
+  const directory = await mkdtemp(join(tmpdir(), 'lens-youtube-sync-'));
+  const databasePath = join(directory, 'sync.sqlite');
 
-  const first = await service.syncUrl('https://youtube.com/channel/UCtest');
-  assert.equal(first.status, 'completed');
-  assert.equal(first.newVideos.length, 2);
-  assert.ok(first.sync?.lastSuccessfulSyncAt);
+  try {
+    const store = new YouTubeSyncStore(databasePath);
 
-  const second = await service.syncUrl('https://youtube.com/channel/UCtest');
-  assert.equal(second.status, 'completed');
-  assert.equal(second.newVideos.length, 0);
-  assert.equal(second.skipped.length, 1);
-  assert.equal(second.skipped[0]?.videoId, 'A');
+    const videos: YouTubeRecentVideo[] = [
+      {
+        videoId: 'AAA',
+        title: 'Video A',
+        url: 'https://www.youtube.com/watch?v=AAA',
+        publishedAt: '2026-08-28T00:00:00+00:00',
+      },
+      {
+        videoId: 'BBB',
+        title: 'Video B',
+        url: 'https://www.youtube.com/watch?v=BBB',
+        publishedAt: '2026-08-27T00:00:00+00:00',
+      },
+    ];
 
-  const persisted = JSON.parse(await readFile(join(dir, 'state.json'), 'utf8')) as {
-    sources: Record<string, unknown>;
-    videos: Record<string, unknown>;
-  };
-  assert.ok(persisted.sources['youtube:channel-id:uctest']);
-  assert.ok(persisted.videos.A);
-  assert.ok(persisted.videos.B);
+    const service = new YouTubeSyncService(
+      store,
+      [new FakeYouTubeProvider(videos)],
+    );
+
+    const first = await service.syncUrl(
+      'https://youtube.com/channel/UCtest',
+    );
+
+    assert.equal(first.status, 'completed');
+    assert.equal(first.channelId, 'UCtest');
+    assert.equal(first.discovered.length, 2);
+    assert.equal(first.skipped.length, 0);
+    assert.equal(first.newVideos.length, 2);
+
+    const persisted = await store.getSource('youtube:channel-id:uctest');
+
+    assert.ok(persisted);
+    assert.equal(persisted.channelId, 'UCtest');
+    assert.equal(persisted.channelUrl, 'https://youtube.com/channel/UCtest');
+    assert.equal(persisted.handle, '@test');
+    assert.ok(persisted.lastCheckedAt);
+    assert.ok(persisted.lastSuccessfulSyncAt);
+
+    assert.equal(await store.hasVideo('AAA'), true);
+    assert.equal(await store.hasVideo('BBB'), true);
+    assert.equal(await store.hasVideo('DOES-NOT-EXIST'), false);
+
+    const second = await service.syncUrl(
+      'https://youtube.com/channel/UCtest',
+    );
+
+    assert.equal(second.status, 'completed');
+    assert.equal(second.discovered.length, 0);
+    assert.equal(second.skipped.length, 1);
+    assert.equal(second.skipped[0]?.videoId, 'AAA');
+    assert.equal(second.newVideos.length, 0);
+
+    /*
+     * Verify that persistence is genuinely SQLite rather than the old
+     * JSON-file implementation.
+     */
+    const db = new DatabaseSync(databasePath);
+
+    const sourceCount = db
+      .prepare('SELECT COUNT(*) AS count FROM youtube_sources')
+      .get() as { count: number | bigint };
+
+    const videoCount = db
+      .prepare('SELECT COUNT(*) AS count FROM youtube_videos')
+      .get() as { count: number | bigint };
+
+    assert.equal(Number(sourceCount.count), 1);
+    assert.equal(Number(videoCount.count), 2);
+
+    db.close();
+    await store.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('does not advance successful sync state when channel ID cannot be resolved', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'lens-youtube-sync-'));
-  const store = new YouTubeSyncStore(join(dir, 'state.json'));
-  const service = new YouTubeSyncService(store, [providerFor([])]);
+  const directory = await mkdtemp(join(tmpdir(), 'lens-youtube-sync-'));
+  const databasePath = join(directory, 'sync.sqlite');
 
-  const result = await service.syncUrl('https://youtube.com/@OpenAI');
-  assert.equal(result.status, 'needs-review');
-  assert.equal(result.sync?.lastSuccessfulSyncAt, null);
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+
+    const provider: SourceProvider = {
+      platform: 'youtube',
+
+      async getMetadata() {
+        return {
+          status: 'unavailable',
+          metadata: null,
+          channel: null,
+          message: null,
+        };
+      },
+
+      async resolveChannel() {
+        return {
+          channelId: null,
+          handle: '@OpenAI',
+          channelUrl: 'https://youtube.com/@OpenAI',
+          message: 'Unable to resolve the channel ID.',
+        };
+      },
+
+      async syncChannel() {
+        throw new Error('syncChannel should not be called');
+      },
+    };
+
+    const service = new YouTubeSyncService(store, [provider]);
+
+    const result = await service.syncUrl(
+      'https://youtube.com/@OpenAI',
+    );
+
+    assert.equal(result.status, 'needs-review');
+    assert.equal(result.channelId, null);
+    assert.equal(result.handle, '@OpenAI');
+    assert.match(
+      result.message ?? '',
+      /Unable to resolve the channel ID/,
+    );
+
+    const source = await store.getSource(
+      'youtube:handle:@openai',
+    );
+
+    assert.ok(source);
+    assert.equal(source.channelId, '');
+    assert.equal(source.lastSuccessfulSyncAt, null);
+
+    await store.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
