@@ -405,7 +405,7 @@ test("lists only content owned by the requested source", async () => {
 
     db.close();
 
-    const videos = await store.listVideosForSource(
+    const videos = await store.listSourceVideos(
       "youtube:channel-id:source-a",
     );
 

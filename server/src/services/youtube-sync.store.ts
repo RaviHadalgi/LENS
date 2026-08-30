@@ -131,30 +131,6 @@ export class YouTubeSyncStore {
     return rows;
   }
 
-  async listVideosForSource(sourceKey: string): Promise<YouTubeRecentVideo[]> {
-  const rows = this.database()
-    .prepare(
-      `
-      SELECT
-        video_id AS videoId,
-        title,
-        url,
-        published_at AS publishedAt,
-        discovered_at AS discoveredAt,
-        status
-      FROM youtube_videos
-      WHERE source_key = ?
-      ORDER BY
-        published_at DESC,
-        discovered_at DESC,
-        video_id ASC
-      `,
-    )
-    .all(sourceKey) as unknown as YouTubeRecentVideo[];
-
-  return rows;
-}
-
   async upsertSourceAccount(source: UpsertSourceAccountInput): Promise<void> {
     const now = new Date().toISOString();
 
