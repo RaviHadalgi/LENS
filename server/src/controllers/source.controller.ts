@@ -140,6 +140,7 @@ export async function updateSourceVideoStatus(
     "processed",
     "failed",
     "needs-review",
+    "processing",
   ] as const;
 
   if (

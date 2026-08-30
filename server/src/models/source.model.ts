@@ -45,7 +45,7 @@ export interface YouTubeRecentVideo {
   url: string;
   publishedAt: string | null;
   discoveredAt?: string;
-  status?: 'discovered' | 'skipped' | 'processed' | 'failed' | 'needs-review';
+  status?: 'discovered' | 'skipped' | 'processed' | 'failed' | 'needs-review' | 'processing';
 }
 
 export interface YouTubeSyncState {
