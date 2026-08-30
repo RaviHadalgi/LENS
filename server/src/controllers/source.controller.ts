@@ -163,7 +163,7 @@ export async function updateSourceVideoStatus(
     return;
   }
 
-  const updated = await youtubeSyncStore.updateVideoStatus(
+  const updated = await youtubeSyncService.updateVideoStatus(
     videoId,
     sourceKey,
     body.status,

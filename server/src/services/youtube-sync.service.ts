@@ -220,51 +220,51 @@ export class YouTubeSyncService {
       for (const video of result.videos) {
         const existingVideo = await this.store.getVideo(video.videoId);
 
-if (existingVideo) {
-  /*
-   * Legacy videos may exist without source ownership.
-   *
-   * If this sync encounters an unowned legacy video, claim it for
-   * the current source. claimVideo() only updates rows whose
-   * source_key is NULL, so ownership can never be stolen.
-   */
-  if (existingVideo.sourceKey === null) {
-    const claimed = await this.store.claimVideo(
-      video.videoId,
-      sourceKey,
-    );
+        if (existingVideo) {
+          /*
+           * Legacy videos may exist without source ownership.
+           *
+           * If this sync encounters an unowned legacy video, claim it for
+           * the current source. claimVideo() only updates rows whose
+           * source_key is NULL, so ownership can never be stolen.
+           */
+          if (existingVideo.sourceKey === null) {
+            const claimed = await this.store.claimVideo(
+              video.videoId,
+              sourceKey,
+            );
 
-    if (claimed) {
-      discovered.push({
-        ...video,
-        discoveredAt: checkedAt,
-        status: "discovered",
-      });
-    } else {
-      skipped.push({
-        ...video,
-        status: "skipped",
-      });
-    }
-  } else {
-    /*
-     * The video is already owned.
-     *
-     * Whether it belongs to this source or another source, do not
-     * overwrite ownership.
-     */
-    skipped.push({
-      ...video,
-      status: "skipped",
-    });
-  }
+            if (claimed) {
+              discovered.push({
+                ...video,
+                discoveredAt: checkedAt,
+                status: "discovered",
+              });
+            } else {
+              skipped.push({
+                ...video,
+                status: "skipped",
+              });
+            }
+          } else {
+            /*
+             * The video is already owned.
+             *
+             * Whether it belongs to this source or another source, do not
+             * overwrite ownership.
+             */
+            skipped.push({
+              ...video,
+              status: "skipped",
+            });
+          }
 
-  /*
-   * The feed is newest-first. A known video marks the point
-   * where older entries are already represented in the database.
-   */
-  break;
-}
+          /*
+           * The feed is newest-first. A known video marks the point
+           * where older entries are already represented in the database.
+           */
+          break;
+        }
 
         const discoveredVideo = {
           ...video,
@@ -349,6 +349,14 @@ if (existingVideo) {
       newVideos: discovered,
       message: result.message,
     };
+  }
+
+  async updateVideoStatus(
+    videoId: string,
+    sourceKey: string,
+    status: NonNullable<YouTubeRecentVideo["status"]>,
+  ): Promise<boolean> {
+    return this.store.updateVideoStatus(videoId, sourceKey, status);
   }
 
   private detectChannel(url: URL): {
