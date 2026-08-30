@@ -351,6 +351,11 @@
   background: #fff7df;
 }
 
+.status-processing {
+  color: #6b5ca5;
+  background: #f2effb;
+}
+
 .status-processed {
   color: #2f7d50;
   background: #edf8f1;

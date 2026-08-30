@@ -113,6 +113,7 @@ export interface SourceVideo {
     | 'processed'
     | 'failed'
     | 'needs-review'
+    | 'processing'
     | null;
 }
 

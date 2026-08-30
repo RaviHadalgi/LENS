@@ -94,6 +94,7 @@ export class SourcesPage implements OnInit {
 
   private readonly api = inject(LensApiService);
   private readonly changeDetector = inject(ChangeDetectorRef);
+  readonly updatingVideoIds = new Set<string>();
 
   selectedBackfill: 'recent' | 'playlists' | 'all' | 'selected' = 'recent';
 
@@ -128,29 +129,35 @@ export class SourcesPage implements OnInit {
     });
   }
 
-  updateSourceVideoStatus(
-    video: SourceVideo,
-    status: NonNullable<SourceVideo['status']>,
-  ): void {
-    const source = this.selectedSource;
+updateSourceVideoStatus(
+  video: SourceVideo,
+  status: NonNullable<SourceVideo['status']>,
+): void {
+  const source = this.selectedSource;
 
-    if (!source) {
-      return;
-    }
-
-    this.api
-      .updateSourceVideoStatus(source.sourceKey, video.videoId, status)
-      .subscribe({
-        next: () => {
-          video.status = status;
-          this.changeDetector.detectChanges();
-        },
-
-        error: (error) => {
-          console.error('Failed to update source video status:', error);
-        },
-      });
+  if (!source || this.updatingVideoIds.has(video.videoId)) {
+    return;
   }
+
+  this.updatingVideoIds.add(video.videoId);
+  this.changeDetector.detectChanges();
+
+  this.api
+    .updateSourceVideoStatus(source.sourceKey, video.videoId, status)
+    .subscribe({
+      next: () => {
+        video.status = status;
+        this.updatingVideoIds.delete(video.videoId);
+        this.changeDetector.detectChanges();
+      },
+
+      error: (error) => {
+        console.error('Failed to update source video status:', error);
+        this.updatingVideoIds.delete(video.videoId);
+        this.changeDetector.detectChanges();
+      },
+    });
+}
 
   private loadSources(): void {
     this.sourcesLoading = true;
