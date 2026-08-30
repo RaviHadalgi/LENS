@@ -131,6 +131,25 @@ export class YouTubeSyncStore {
     return rows;
   }
 
+  async updateVideoStatus(
+    videoId: string,
+    sourceKey: string,
+    status: NonNullable<YouTubeRecentVideo["status"]>,
+  ): Promise<boolean> {
+    const result = this.database()
+      .prepare(
+        `
+      UPDATE youtube_videos
+      SET status = ?
+      WHERE video_id = ?
+        AND source_key = ?
+      `,
+      )
+      .run(status, videoId, sourceKey);
+
+    return result.changes > 0;
+  }
+
   async upsertSourceAccount(source: UpsertSourceAccountInput): Promise<void> {
     const now = new Date().toISOString();
 
@@ -240,9 +259,9 @@ export class YouTubeSyncStore {
   }
 
   async listSourceVideos(sourceKey: string): Promise<SourceVideo[]> {
-  const rows = this.database()
-    .prepare(
-      `
+    const rows = this.database()
+      .prepare(
+        `
       SELECT
         video_id AS videoId,
         title,
@@ -257,11 +276,11 @@ export class YouTubeSyncStore {
         discovered_at DESC,
         video_id ASC
       `,
-    )
-    .all(sourceKey) as unknown as SourceVideo[];
+      )
+      .all(sourceKey) as unknown as SourceVideo[];
 
-  return rows;
-}
+    return rows;
+  }
 
   async claimVideo(videoId: string, sourceKey: string): Promise<boolean> {
     const result = this.database()

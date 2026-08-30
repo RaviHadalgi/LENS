@@ -153,5 +153,21 @@ export class LensApiService {
     );
   }
 
+  updateSourceVideoStatus(
+  sourceKey: string,
+  videoId: string,
+  status: SourceVideo['status'],
+) {
+  return this.http.patch<{
+    sourceKey: string;
+    videoId: string;
+    status: NonNullable<SourceVideo['status']>;
+  }>(
+    `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos/${encodeURIComponent(videoId)}/status`,
+    {
+      status,
+    },
+  );
+}
   
 }

@@ -14,6 +14,7 @@ describe('SourcesPage', () => {
     analyzeSource: vi.fn(),
     syncYouTubeChannel: vi.fn(),
     listSourceVideos: vi.fn(),
+    updateSourceVideoStatus: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -361,5 +362,45 @@ describe('SourcesPage', () => {
     expect(component.sourceVideos).toHaveLength(1);
     expect(component.sourceVideos[0]?.videoId).toBe('VIDEO-1');
     expect(component.sourceVideosLoading).toBe(false);
+  });
+
+  it('updates a source video processing status', () => {
+    const source = {
+      name: 'test',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 1,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:test',
+    };
+
+    const video = {
+      videoId: 'VIDEO-123',
+      title: 'Test video',
+      url: 'https://youtube.com/watch?v=VIDEO-123',
+      publishedAt: '2026-08-30T00:00:00.000Z',
+      discoveredAt: '2026-08-30T01:00:00.000Z',
+      status: 'discovered' as const,
+    };
+
+    component.sources = [source];
+    component.sourceVideos = [video];
+    component.selectedSource = source;
+
+    apiMock.updateSourceVideoStatus.mockReturnValue(
+      of({
+        sourceKey: source.sourceKey,
+        videoId: video.videoId,
+        status: 'processed',
+      }),
+    );
+
+    component.updateSourceVideoStatus(video, 'processed');
+
+    expect(apiMock.updateSourceVideoStatus).toHaveBeenCalledWith(
+      source.sourceKey,
+      video.videoId,
+      'processed',
+    );
   });
 });

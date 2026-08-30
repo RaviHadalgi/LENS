@@ -1,9 +1,10 @@
 import type { Request, Response } from "express";
 
-import type { AnalyzeSourceRequest } from "../models/source.model";
+import type { AnalyzeSourceRequest, YouTubeRecentVideo } from "../models/source.model";
 import { SourceService } from "../services/source.service";
 import { YouTubeSyncService } from "../services/youtube-sync.service";
 import { YouTubeSyncStore } from "../services/youtube-sync.store";
+import router from "../routes/source.routes";
 
 const sourceService = new SourceService();
 const youtubeSyncService = new YouTubeSyncService();
@@ -107,6 +108,79 @@ export async function listSourceVideos(
   res.status(200).json({
     sourceKey,
     videos,
+  });
+}
+
+export async function updateSourceVideoStatus(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sourceKey = req.params["sourceKey"];
+  const videoId = req.params["videoId"];
+  const body = req.body as {
+    status?: YouTubeRecentVideo["status"];
+  };
+
+  if (
+    typeof sourceKey !== "string" ||
+    sourceKey.length === 0 ||
+    typeof videoId !== "string" ||
+    videoId.length === 0
+  ) {
+    res.status(400).json({
+      status: "invalid",
+      message: "A source key and video ID are required.",
+    });
+    return;
+  }
+
+  const validStatuses = [
+    "discovered",
+    "skipped",
+    "processed",
+    "failed",
+    "needs-review",
+  ] as const;
+
+  if (
+    typeof body.status !== "string" ||
+    !validStatuses.includes(body.status as (typeof validStatuses)[number])
+  ) {
+    res.status(400).json({
+      status: "invalid",
+      message: "A valid video status is required.",
+    });
+    return;
+  }
+
+  const source = await youtubeSyncStore.getSourceAccount(sourceKey);
+
+  if (!source) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Source not found.",
+    });
+    return;
+  }
+
+  const updated = await youtubeSyncStore.updateVideoStatus(
+    videoId,
+    sourceKey,
+    body.status,
+  );
+
+  if (!updated) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Video not found for this source.",
+    });
+    return;
+  }
+
+  res.status(200).json({
+    sourceKey,
+    videoId,
+    status: body.status,
   });
 }
 

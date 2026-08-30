@@ -6,12 +6,8 @@
   box-sizing: border-box;
 }
 
-/* =========================================================
-   Sources page
-========================================================= */
-
 .sources-page {
-  width: min(1080px, calc(100% - 48px));
+  width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
   padding: 36px 0 60px;
 }
@@ -44,7 +40,7 @@
 }
 
 /* =========================================================
-   Source library
+   SOURCE LIBRARY
 ========================================================= */
 
 .library {
@@ -55,17 +51,69 @@
   font-size: 19px;
 }
 
-.source-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+.source-library-state {
   margin-top: 18px;
+  padding: 28px;
+  border: 1px solid #e1e5ea;
+  border-radius: 16px;
+  background: #fafbfc;
+  color: #687180;
+  text-align: center;
+  font-size: 14px;
+}
+
+.source-library-state.error,
+.source-inventory-state.error {
+  color: #8a3636;
+  background: #fff8f8;
+  border-color: #efcccc;
+}
+
+/* =========================================================
+   SOURCE CAROUSEL
+========================================================= */
+
+.source-carousel {
+  position: relative;
+  margin-top: 18px;
+  padding: 0 42px;
+}
+
+.source-carousel-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 2px 2px 10px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.source-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.source-slide {
+  flex: 0 0 calc((100% - 32px) / 3);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.source-slide app-lens-card {
+  display: block;
+  height: 100%;
+}
+
+.source-card {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
 }
 
 .source-top {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 
 .source-avatar,
@@ -80,15 +128,24 @@
 }
 
 .source-avatar {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
+  font-size: 18px;
+}
+
+.source-identity {
+  min-width: 0;
 }
 
 .source-top h3 {
   margin: 0;
+  overflow: hidden;
   color: #17202a;
-  font-size: 15px;
+  font-size: 16px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .source-top p {
@@ -100,14 +157,264 @@
 
 .source-stats {
   display: flex;
-  gap: 14px;
-  margin-top: 20px;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 24px;
   color: #687180;
   font-size: 12px;
 }
 
+.source-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.selected-indicator {
+  color: #4d4bc7;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.carousel-control {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #d9dee5;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #4c5663;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(23, 32, 42, 0.08);
+  transform: translateY(-50%);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.carousel-control:hover {
+  border-color: #c5ccd5;
+  background: #f7f8fa;
+  box-shadow: 0 5px 14px rgba(23, 32, 42, 0.11);
+}
+
+.carousel-control-previous {
+  left: 0;
+}
+
+.carousel-control-next {
+  right: 0;
+}
+
 /* =========================================================
-   Add source
+   SOURCE INVENTORY
+========================================================= */
+
+.source-inventory {
+  margin-top: 30px;
+}
+
+.source-inventory-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.source-inventory-header h2 {
+  margin: 0;
+  color: #17202a;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+
+.source-inventory-header p {
+  margin: 5px 0 0;
+  color: #7b8490;
+  font-size: 13px;
+}
+
+.source-inventory-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 90px;
+  padding: 20px;
+  border: 1px solid #e1e5ea;
+  border-radius: 14px;
+  background: #fafbfc;
+  color: #687180;
+  font-size: 13px;
+}
+
+.state-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #dfe3e8;
+  border-top-color: #5b5bd6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.source-video-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-video {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  border: 1px solid #e1e5ea;
+  border-radius: 14px;
+  background: #ffffff;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.source-video:hover {
+  border-color: #d3d9e0;
+  box-shadow: 0 4px 14px rgba(23, 32, 42, 0.05);
+}
+
+.source-video-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.source-video-link {
+  display: block;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.source-video-link strong {
+  display: block;
+  overflow: hidden;
+  color: #202934;
+  font-size: 14px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+}
+
+.source-video-link:hover strong {
+  color: #4d4bc7;
+}
+
+.source-video-link span {
+  display: block;
+  margin-top: 6px;
+  color: #87909c;
+  font-size: 12px;
+}
+
+.source-video-status {
+  margin-top: 9px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-review {
+  color: #9a6a00;
+  background: #fff7df;
+}
+
+.status-processed {
+  color: #2f7d50;
+  background: #edf8f1;
+}
+
+.status-discovered {
+  color: #596474;
+  background: #f0f2f5;
+}
+
+.status-failed {
+  color: #a23b3b;
+  background: #fff0f0;
+}
+
+.source-video-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.video-action {
+  min-height: 34px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    transform 80ms ease;
+}
+
+.video-action:active {
+  transform: translateY(1px);
+}
+
+.video-action-secondary {
+  border: 1px solid #d9dee5;
+  background: #ffffff;
+  color: #4f5966;
+}
+
+.video-action-secondary:hover {
+  border-color: #c6ccd5;
+  background: #f7f8fa;
+}
+
+.video-action-primary {
+  border: 1px solid #252c36;
+  background: #252c36;
+  color: #ffffff;
+}
+
+.video-action-primary:hover {
+  background: #171c23;
+}
+
+/* =========================================================
+   ADD SOURCE
 ========================================================= */
 
 .source-types {
@@ -122,6 +429,7 @@
   border-radius: 11px;
   background: #f8f9fb;
   text-align: left;
+  cursor: pointer;
   transition:
     border-color 120ms ease,
     background-color 120ms ease;
@@ -167,7 +475,7 @@
 }
 
 /* =========================================================
-   Analysis state
+   ANALYSIS
 ========================================================= */
 
 .analysis-state {
@@ -244,7 +552,7 @@
 }
 
 /* =========================================================
-   Creator profile
+   PROFILE
 ========================================================= */
 
 .profile-header {
@@ -294,10 +602,6 @@
   margin-top: 22px;
 }
 
-/*
- * LensCard now provides the actual card/container.
- * profile-field only handles the text inside it.
- */
 .profile-field span {
   display: block;
   color: #7c8591;
@@ -317,7 +621,7 @@
 }
 
 /* =========================================================
-   Verification / informational blocks
+   INFORMATION
 ========================================================= */
 
 .verification-note,
@@ -332,7 +636,7 @@
 }
 
 /* =========================================================
-   Edit profile
+   EDIT
 ========================================================= */
 
 .edit-section {
@@ -377,7 +681,7 @@
 }
 
 /* =========================================================
-   Processing options
+   PROCESSING OPTIONS
 ========================================================= */
 
 .backfill-options {
@@ -392,6 +696,7 @@
   border-radius: 12px;
   background: #f8f9fb;
   text-align: left;
+  cursor: pointer;
   transition:
     border-color 120ms ease,
     background-color 120ms ease;
@@ -424,7 +729,7 @@
 }
 
 /* =========================================================
-   Progress animation
+   ANIMATIONS
 ========================================================= */
 
 @keyframes progress {
@@ -437,19 +742,42 @@
   }
 }
 
-/* =========================================================
-   Responsive
-========================================================= */
-
-@media (max-width: 850px) {
-  .source-grid {
-    grid-template-columns: 1fr;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-@media (max-width: 650px) {
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 900px) {
+  .source-slide {
+    flex-basis: calc((100% - 16px) / 2);
+  }
+}
+
+@media (max-width: 700px) {
   .sources-page {
     width: calc(100% - 28px);
+  }
+
+  .source-slide {
+    flex-basis: 100%;
+  }
+
+  .source-carousel {
+    padding: 0 36px;
+  }
+
+  .source-video {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .source-video-actions {
+    justify-content: flex-start;
   }
 
   .source-types,
@@ -471,8 +799,28 @@
     align-items: flex-start;
     flex-wrap: wrap;
   }
+}
 
-  .user-profile-field {
+@media (max-width: 480px) {
+  .source-carousel {
+    padding: 0 30px;
+  }
+
+  .carousel-control {
+    width: 30px;
+    height: 30px;
+  }
+
+  .source-video {
+    padding: 14px;
+  }
+
+  .source-video-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .video-action {
     width: 100%;
   }
 }

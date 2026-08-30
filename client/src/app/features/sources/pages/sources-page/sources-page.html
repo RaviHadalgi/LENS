@@ -1,38 +1,20 @@
 <section class="sources-page">
-  <!-- =========================================================
-       PAGE HEADER
-  ========================================================== -->
-
   <header class="page-header">
     <div>
       <h1>Sources</h1>
-
-      <p>
-        Add the people and content you want LENS to learn from.
-      </p>
+      <p>Add the people and content you want LENS to learn from.</p>
     </div>
 
-    <app-lens-button
-      variant="primary"
-      type="button"
-      (click)="openAddSource()"
-    >
+    <app-lens-button variant="primary" type="button" (click)="openAddSource()">
       + Add source
     </app-lens-button>
   </header>
-
-  <!-- =========================================================
-       SOURCE LIBRARY
-  ========================================================== -->
 
   <section class="library">
     <div class="section-header">
       <div>
         <h2>Your sources</h2>
-
-        <p>
-          Creators and channels LENS is learning from.
-        </p>
+        <p>Creators and channels LENS is learning from.</p>
       </div>
 
       <app-lens-badge tone="neutral" [pill]="true">
@@ -40,103 +22,189 @@
       </app-lens-badge>
     </div>
 
-    <div class="source-grid">
-      @for (source of sources; track source.name) {
-        <app-lens-card [interactive]="true" (click)="selectSource(source)" [class.selected]="selectedSource?.sourceKey === source.sourceKey">
-          <div class="source-top">
-            <div class="source-avatar">
-              {{ source.name.charAt(0) }}
-            </div>
-
-            <div>
-              <h3>{{ source.name }}</h3>
-
-              <p>
-                {{ source.perspective }}
-              </p>
-            </div>
-          </div>
-
-          <div class="source-stats">
-            <span>
-              {{ source.contentCount }} items
-            </span>
-
-            <span>
-              {{ source.conceptCount }} concepts
-            </span>
-          </div>
-
-          @if (source.status === 'verified') {
-            <app-lens-badge tone="success">
-              Profile verified
-            </app-lens-badge>
-          } @else {
-            <app-lens-badge tone="warning">
-              Profile review available
-            </app-lens-badge>
-          }
-        </app-lens-card>
-      }
-      @if (selectedSource) {
-  <section class="source-inventory">
-    <div class="source-inventory-header">
-      <div>
-        <h2>{{ selectedSource.name }} content</h2>
-        <p>
-          {{ selectedSource.contentCount }} items owned by this source
-        </p>
+    @if (sourcesLoading) {
+      <div class="source-library-state">
+        Loading sources…
       </div>
-    </div>
-
-    @if (sourceVideosLoading) {
-      <div class="source-inventory-state">
-        Loading content…
+    } @else if (sourcesError) {
+      <div class="source-library-state error" role="alert">
+        {{ sourcesError }}
       </div>
-    } @else if (sourceVideosError) {
-      <div class="source-inventory-state" role="alert">
-        {{ sourceVideosError }}
-      </div>
-    } @else if (sourceVideos.length === 0) {
-      <div class="source-inventory-state">
-        No content has been discovered for this source yet.
+    } @else if (sources.length === 0) {
+      <div class="source-library-state">
+        No sources have been added yet.
       </div>
     } @else {
-      <div class="source-video-list">
-        @for (video of sourceVideos; track video.videoId) {
-          <a
-            class="source-video"
-            [href]="video.url"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <div>
-              <strong>{{ video.title || 'Untitled video' }}</strong>
-              @if (video.publishedAt) {
-                <span>{{ video.publishedAt | date }}</span>
-              }
+      <div class="source-carousel">
+        <button
+          type="button"
+          class="carousel-control carousel-control-previous"
+          aria-label="Previous sources"
+          (click)="scrollSources('previous')"
+        >
+          ‹
+        </button>
+
+        <div
+          #sourceCarousel
+          class="source-carousel-track"
+        >
+          @for (source of sources; track source.sourceKey) {
+            <div class="source-slide">
+              <app-lens-card
+                [interactive]="true"
+                [class.selected]="selectedSource?.sourceKey === source.sourceKey"
+                (click)="selectSource(source)"
+              >
+                <div class="source-card">
+                  <div class="source-top">
+                    <div class="source-avatar">
+                      {{ source.name.charAt(0).toUpperCase() }}
+                    </div>
+
+                    <div class="source-identity">
+                      <h3>{{ source.name }}</h3>
+
+                      <p>{{ source.perspective }}</p>
+                    </div>
+                  </div>
+
+                  <div class="source-stats">
+                    <span>{{ source.contentCount }} items</span>
+                    <span>{{ source.conceptCount }} concepts</span>
+                  </div>
+
+                  <div class="source-card-footer">
+                    @if (source.status === 'verified') {
+                      <app-lens-badge tone="success">
+                        Profile verified
+                      </app-lens-badge>
+                    } @else {
+                      <app-lens-badge tone="warning">
+                        Profile review available
+                      </app-lens-badge>
+                    }
+
+                    @if (selectedSource?.sourceKey === source.sourceKey) {
+                      <span class="selected-indicator">Selected</span>
+                    }
+                  </div>
+                </div>
+              </app-lens-card>
             </div>
-          </a>
-        }
+          }
+        </div>
+
+        <button
+          type="button"
+          class="carousel-control carousel-control-next"
+          aria-label="Next sources"
+          (click)="scrollSources('next')"
+        >
+          ›
+        </button>
       </div>
     }
-  </section>
-}
-    </div>
-  </section>
 
-  <!-- =========================================================
-       ADD / ANALYZE / REVIEW / EDIT / PROCESS MODAL
+    @if (selectedSource) {
+      <section class="source-inventory">
+        <div class="source-inventory-header">
+          <div>
+            <h2>{{ selectedSource.name }} content</h2>
+            <p>
+              {{ selectedSource.contentCount }}
+              {{ selectedSource.contentCount === 1 ? 'item' : 'items' }}
+              owned by this source
+            </p>
+          </div>
+        </div>
 
-       LensModal owns:
-       - backdrop
-       - header
-       - title
-       - description
-       - close button
-       - scrollable body
-       - footer
-  ========================================================== -->
+        @if (sourceVideosLoading) {
+          <div class="source-inventory-state">
+            <span class="state-spinner"></span>
+            Loading content…
+          </div>
+        } @else if (sourceVideosError) {
+          <div class="source-inventory-state error" role="alert">
+            {{ sourceVideosError }}
+          </div>
+        } @else if (sourceVideos.length === 0) {
+          <div class="source-inventory-state">
+            No content has been discovered for this source yet.
+          </div>
+        } @else {
+          <div class="source-video-list">
+            @for (video of sourceVideos; track video.videoId) {
+              <article class="source-video">
+                <div class="source-video-main">
+                  <a
+                    class="source-video-link"
+                    [href]="video.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <strong>
+                      {{ video.title || 'Untitled video' }}
+                    </strong>
+
+                    @if (video.publishedAt) {
+                      <span>{{ video.publishedAt | date }}</span>
+                    }
+                  </a>
+
+                  <div class="source-video-status">
+                    @if (video.status === 'needs-review') {
+                      <span class="status-pill status-review">
+                        <span class="status-dot"></span>
+                        Needs review
+                      </span>
+                    } @else if (video.status === 'processed') {
+                      <span class="status-pill status-processed">
+                        <span class="status-dot"></span>
+                        Processed
+                      </span>
+                    } @else if (video.status === 'failed') {
+                      <span class="status-pill status-failed">
+                        <span class="status-dot"></span>
+                        Failed
+                      </span>
+                    } @else {
+                      <span class="status-pill status-discovered">
+                        <span class="status-dot"></span>
+                        Discovered
+                      </span>
+                    }
+                  </div>
+                </div>
+
+                <div class="source-video-actions">
+                  @if (video.status === 'discovered') {
+                    <button
+                      type="button"
+                      class="video-action video-action-secondary"
+                      (click)="updateSourceVideoStatus(video, 'needs-review')"
+                    >
+                      Needs review
+                    </button>
+                  }
+
+                  @if (video.status !== 'processed') {
+                    <button
+                      type="button"
+                      class="video-action video-action-primary"
+                      (click)="updateSourceVideoStatus(video, 'processed')"
+                    >
+                      Mark processed
+                    </button>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
+  </section>
 
   <app-lens-modal
     [open]="showAddSource"
@@ -144,11 +212,6 @@
     [description]="modalDescription"
     (closed)="closeAddSource()"
   >
-
-    <!-- =======================================================
-         1. SOURCE INPUT
-    ======================================================== -->
-
     @if (addSourceStep === 'input') {
       <div class="source-types">
         <button
@@ -158,10 +221,7 @@
           (click)="selectType('channel')"
         >
           <strong>Channel</strong>
-
-          <span>
-            Discover the creator's content
-          </span>
+          <span>Discover the creator's content</span>
         </button>
 
         <button
@@ -171,10 +231,7 @@
           (click)="selectType('playlist')"
         >
           <strong>Playlist</strong>
-
-          <span>
-            Learn from a specific series
-          </span>
+          <span>Learn from a specific series</span>
         </button>
 
         <button
@@ -184,10 +241,7 @@
           (click)="selectType('video')"
         >
           <strong>Video</strong>
-
-          <span>
-            Analyze one piece of content
-          </span>
+          <span>Analyze one piece of content</span>
         </button>
       </div>
 
@@ -214,26 +268,18 @@
 
       <div class="source-note">
         <span>●</span>
-
         LENS will verify the creator before processing.
       </div>
     }
 
-    <!-- =======================================================
-         2. ANALYZING SOURCE
-    ======================================================== -->
-
     @if (addSourceStep === 'analyzing') {
       <div class="analysis-state">
-        <div class="loading-symbol">
-          L
-        </div>
+        <div class="loading-symbol">L</div>
 
         <h3>Identifying source</h3>
 
         <p>
-          LENS is checking the source and preparing
-          a draft creator profile.
+          LENS is checking the source and preparing a draft creator profile.
         </p>
 
         <div class="progress-track">
@@ -251,19 +297,11 @@
     @if (addSourceStep === 'error') {
       <div class="analysis-error" role="alert">
         <strong>Source analysis did not finish.</strong>
-
         <p>{{ analysisError }}</p>
       </div>
     }
 
-    <!-- =======================================================
-         3. CREATOR PROFILE REVIEW
-    ======================================================== -->
-
-    @if (
-      addSourceStep === 'profile' &&
-      creatorProfile
-    ) {
+    @if (addSourceStep === 'profile' && creatorProfile) {
       <div class="profile-header">
         <div class="profile-avatar">
           @if (creatorProfile.avatarUrl && !avatarImageFailed) {
@@ -278,19 +316,11 @@
         </div>
 
         <div class="profile-identity">
-          <h3>
-            {{ creatorProfile.name }}
-          </h3>
-
-          <p>
-            {{ creatorProfile.sourceUrl }}
-          </p>
+          <h3>{{ creatorProfile.name }}</h3>
+          <p>{{ creatorProfile.sourceUrl }}</p>
         </div>
 
-        @if (
-          creatorProfile.identityStatus ===
-          'high-confidence'
-        ) {
+        @if (creatorProfile.identityStatus === 'high-confidence') {
           <app-lens-badge tone="success">
             Identity likely matched
           </app-lens-badge>
@@ -305,91 +335,59 @@
         <app-lens-card padding="small">
           <div class="profile-field">
             <span>Self-described role</span>
-
-            <strong>
-              {{ creatorProfile.selfDescription }}
-            </strong>
+            <strong>{{ creatorProfile.selfDescription }}</strong>
           </div>
         </app-lens-card>
 
         <app-lens-card padding="small">
           <div class="profile-field">
             <span>Perspective</span>
-
-            <strong>
-              {{ creatorProfile.perspective }}
-            </strong>
+            <strong>{{ creatorProfile.perspective }}</strong>
           </div>
         </app-lens-card>
 
         <app-lens-card padding="small">
           <div class="profile-field">
             <span>Relevant expertise</span>
-
-            <strong>
-              {{ creatorProfile.relevantExpertise }}
-            </strong>
+            <strong>{{ creatorProfile.relevantExpertise }}</strong>
           </div>
         </app-lens-card>
 
         <app-lens-card padding="small">
           <div class="profile-field">
             <span>Education / degree</span>
-
-            <strong>
-              {{ creatorProfile.education }}
-            </strong>
+            <strong>{{ creatorProfile.education }}</strong>
           </div>
         </app-lens-card>
 
         <app-lens-card padding="small">
           <div class="profile-field">
             <span>Professional experience</span>
-
-            <strong>
-              {{ creatorProfile.professionalExperience }}
-            </strong>
+            <strong>{{ creatorProfile.professionalExperience }}</strong>
           </div>
         </app-lens-card>
 
         <app-lens-card padding="small">
           <div class="profile-field">
             <span>Evidence style</span>
-
-            <strong>
-              {{ creatorProfile.evidenceStyle }}
-            </strong>
+            <strong>{{ creatorProfile.evidenceStyle }}</strong>
           </div>
         </app-lens-card>
 
-        <app-lens-card
-          padding="small"
-          class="user-profile-field"
-        >
+        <app-lens-card padding="small" class="user-profile-field">
           <div class="profile-field">
             <span>Your classification</span>
-
             <strong>
-              {{
-                creatorProfile.userPerspective ||
-                  'Not classified yet'
-              }}
+              {{ creatorProfile.userPerspective || 'Not classified yet' }}
             </strong>
           </div>
         </app-lens-card>
 
-        <app-lens-card
-          padding="small"
-          class="user-profile-field"
-        >
+        <app-lens-card padding="small" class="user-profile-field">
           <div class="profile-field">
             <span>Relevant to you for</span>
-
             <strong>
-              {{
-                creatorProfile.userRelevantFor ||
-                  'Not specified yet'
-              }}
+              {{ creatorProfile.userRelevantFor || 'Not specified yet' }}
             </strong>
           </div>
         </app-lens-card>
@@ -397,25 +395,14 @@
 
       <div class="verification-note">
         <strong>Important:</strong>
-
-        creator claims, independently sourced information,
-        LENS interpretation and your classification remain
-        separate.
+        creator claims, independently sourced information, LENS interpretation
+        and your classification remain separate.
       </div>
     }
 
-    <!-- =======================================================
-         4. EDIT CREATOR PROFILE
-    ======================================================== -->
-
-    @if (
-      addSourceStep === 'editing' &&
-      creatorProfile
-    ) {
+    @if (addSourceStep === 'editing' && creatorProfile) {
       <div class="edit-section">
-        <div class="edit-section-title">
-          Source information
-        </div>
+        <div class="edit-section-title">Source information</div>
 
         <div class="edit-grid">
           <app-lens-form-field
@@ -464,18 +451,14 @@
               id="experience"
               class="lens-textarea"
               rows="3"
-              [(ngModel)]="
-                creatorProfile.professionalExperience
-              "
+              [(ngModel)]="creatorProfile.professionalExperience"
             ></textarea>
           </app-lens-form-field>
         </div>
       </div>
 
       <div class="edit-section">
-        <div class="edit-section-title">
-          LENS interpretation
-        </div>
+        <div class="edit-section-title">LENS interpretation</div>
 
         <div class="edit-grid">
           <app-lens-form-field
@@ -486,9 +469,7 @@
               id="expertise"
               class="lens-textarea"
               rows="3"
-              [(ngModel)]="
-                creatorProfile.relevantExpertise
-              "
+              [(ngModel)]="creatorProfile.relevantExpertise"
             ></textarea>
           </app-lens-form-field>
 
@@ -500,9 +481,7 @@
               id="lens-perspective"
               class="lens-input"
               type="text"
-              [(ngModel)]="
-                creatorProfile.perspective
-              "
+              [(ngModel)]="creatorProfile.perspective"
             />
           </app-lens-form-field>
 
@@ -515,9 +494,7 @@
                 id="evidence-style"
                 class="lens-textarea"
                 rows="3"
-                [(ngModel)]="
-                  creatorProfile.evidenceStyle
-                "
+                [(ngModel)]="creatorProfile.evidenceStyle"
               ></textarea>
             </app-lens-form-field>
           </div>
@@ -525,14 +502,11 @@
       </div>
 
       <div class="edit-section user-section">
-        <div class="edit-section-title">
-          Your classification
-        </div>
+        <div class="edit-section-title">Your classification</div>
 
         <p class="edit-help">
-          Tell LENS how you personally want to use this
-          source. This does not change what the creator
-          or LENS says about the source.
+          Tell LENS how you personally want to use this source. This does not
+          change what the creator or LENS says about the source.
         </p>
 
         <div class="edit-grid">
@@ -544,9 +518,7 @@
               id="user-perspective"
               class="lens-input"
               type="text"
-              [(ngModel)]="
-                creatorProfile.userPerspective
-              "
+              [(ngModel)]="creatorProfile.userPerspective"
               placeholder="e.g. Female perspective"
             />
           </app-lens-form-field>
@@ -559,9 +531,7 @@
               id="user-relevant"
               class="lens-input"
               type="text"
-              [(ngModel)]="
-                creatorProfile.userRelevantFor
-              "
+              [(ngModel)]="creatorProfile.userRelevantFor"
               placeholder="e.g. Relationships, attraction"
             />
           </app-lens-form-field>
@@ -576,9 +546,7 @@
                 id="user-notes"
                 class="lens-textarea"
                 rows="4"
-                [(ngModel)]="
-                  creatorProfile.userNotes
-                "
+                [(ngModel)]="creatorProfile.userNotes"
                 placeholder="Your personal reason for following this source..."
               ></textarea>
             </app-lens-form-field>
@@ -588,97 +556,61 @@
 
       <div class="verification-note">
         <strong>Remember:</strong>
-
-        creator claims, independently sourced information,
-        LENS interpretation and your classification remain
-        separate.
+        creator claims, independently sourced information, LENS interpretation
+        and your classification remain separate.
       </div>
     }
-
-    <!-- =======================================================
-         5. PROCESSING OPTIONS
-    ======================================================== -->
 
     @if (addSourceStep === 'processing') {
       <div class="backfill-options">
         <button
           type="button"
           class="backfill-option"
-          [class.active]="
-            selectedBackfill === 'recent'
-          "
+          [class.active]="selectedBackfill === 'recent'"
           (click)="selectBackfill('recent')"
         >
           <strong>Recent content</strong>
-
-          <span>
-            Start with recent uploads.
-          </span>
+          <span>Start with recent uploads.</span>
         </button>
 
         <button
           type="button"
           class="backfill-option"
-          [class.active]="
-            selectedBackfill === 'playlists'
-          "
+          [class.active]="selectedBackfill === 'playlists'"
           (click)="selectBackfill('playlists')"
         >
           <strong>Selected playlists</strong>
-
-          <span>
-            Choose the series you care about.
-          </span>
+          <span>Choose the series you care about.</span>
         </button>
 
         <button
           type="button"
           class="backfill-option"
-          [class.active]="
-            selectedBackfill === 'selected'
-          "
+          [class.active]="selectedBackfill === 'selected'"
           (click)="selectBackfill('selected')"
         >
           <strong>Selected content</strong>
-
-          <span>
-            Choose specific videos or episodes.
-          </span>
+          <span>Choose specific videos or episodes.</span>
         </button>
 
         <button
           type="button"
           class="backfill-option"
-          [class.active]="
-            selectedBackfill === 'all'
-          "
+          [class.active]="selectedBackfill === 'all'"
           (click)="selectBackfill('all')"
         >
           <strong>Entire available history</strong>
-
-          <span>
-            Build the broadest source knowledge base.
-          </span>
+          <span>Build the broadest source knowledge base.</span>
         </button>
       </div>
 
       <div class="processing-note">
         <strong>No media downloads.</strong>
-
-        LENS stores source links, metadata and extracted
-        knowledge.
+        LENS stores source links, metadata and extracted knowledge.
       </div>
     }
 
-    <!-- =======================================================
-         COMMON FOOTER
-
-         Notice: the modal itself owns the footer.
-         These are only the feature-specific actions.
-    ======================================================== -->
-
     <div lens-modal-footer>
-
       @if (addSourceStep === 'input') {
         <app-lens-button
           variant="secondary"
@@ -727,10 +659,7 @@
         </app-lens-button>
       }
 
-      @if (
-        addSourceStep === 'profile' &&
-        creatorProfile
-      ) {
+      @if (addSourceStep === 'profile' && creatorProfile) {
         <app-lens-button
           variant="secondary"
           type="button"
@@ -748,10 +677,7 @@
         </app-lens-button>
       }
 
-      @if (
-        addSourceStep === 'editing' &&
-        creatorProfile
-      ) {
+      @if (addSourceStep === 'editing' && creatorProfile) {
         <app-lens-button
           variant="secondary"
           type="button"
@@ -786,8 +712,6 @@
           Start learning
         </app-lens-button>
       }
-
     </div>
-
   </app-lens-modal>
 </section>

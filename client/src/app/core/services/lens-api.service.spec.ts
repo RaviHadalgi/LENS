@@ -180,4 +180,33 @@ describe('LensApiService', () => {
       ],
     });
   });
+
+  it('updates the processing status of a source video', () => {
+  service.updateSourceVideoStatus(
+    'youtube:channel-id:uc-test',
+    'VIDEO-123',
+    'processed',
+  ).subscribe((result) => {
+    expect(result).toEqual({
+      sourceKey: 'youtube:channel-id:uc-test',
+      videoId: 'VIDEO-123',
+      status: 'processed',
+    });
+  });
+
+  const request = httpMock.expectOne(
+    'http://localhost:3000/api/sources/youtube%3Achannel-id%3Auc-test/videos/VIDEO-123/status',
+  );
+
+  expect(request.request.method).toBe('PATCH');
+  expect(request.request.body).toEqual({
+    status: 'processed',
+  });
+
+  request.flush({
+    sourceKey: 'youtube:channel-id:uc-test',
+    videoId: 'VIDEO-123',
+    status: 'processed',
+  });
+});
 });

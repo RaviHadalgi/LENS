@@ -624,3 +624,89 @@ test("does not advance successful sync state when channel ID cannot be resolved"
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("updates the processing status of an owned video", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "lens-youtube-video-status-"),
+  );
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+
+    await store.upsertVideo(
+      "youtube:channel-id:source-a",
+      {
+        videoId: "STATUS-1",
+        title: "Status test video",
+        url: "https://youtube.com/watch?v=STATUS-1",
+        publishedAt: "2026-08-30T00:00:00.000Z",
+        status: "discovered",
+      },
+    );
+
+    await store.updateVideoStatus(
+      "STATUS-1",
+      "youtube:channel-id:source-a",
+      "processed",
+    );
+
+    const videos = await store.listSourceVideos(
+      "youtube:channel-id:source-a",
+    );
+
+    assert.equal(videos.length, 1);
+    assert.equal(videos[0]?.videoId, "STATUS-1");
+    assert.equal(videos[0]?.status, "processed");
+
+    await store.close();
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+test("does not update processing status when the source does not own the video", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "lens-youtube-video-status-ownership-"),
+  );
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+
+    await store.upsertVideo(
+      "youtube:channel-id:source-a",
+      {
+        videoId: "OWNED-STATUS-1",
+        title: "Owned status test video",
+        url: "https://youtube.com/watch?v=OWNED-STATUS-1",
+        publishedAt: "2026-08-30T00:00:00.000Z",
+        status: "discovered",
+      },
+    );
+
+    const updated = await store.updateVideoStatus(
+      "OWNED-STATUS-1",
+      "youtube:channel-id:source-b",
+      "processed",
+    );
+
+    assert.equal(updated, false);
+
+    const videos = await store.listSourceVideos(
+      "youtube:channel-id:source-a",
+    );
+
+    assert.equal(videos.length, 1);
+    assert.equal(videos[0]?.status, "discovered");
+
+    await store.close();
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    });
+  }
+});

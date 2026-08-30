@@ -1,4 +1,12 @@
-import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  inject,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { timeout } from 'rxjs';
 
@@ -14,9 +22,14 @@ import type {
   AnalyzeSourceResponse,
   SourceVideo,
 } from '../../../../core/services/lens-api.service';
-import { DatePipe } from '@angular/common';
 
-type AddSourceStep = 'input' | 'analyzing' | 'error' | 'profile' | 'editing' | 'processing';
+type AddSourceStep =
+  | 'input'
+  | 'analyzing'
+  | 'error'
+  | 'profile'
+  | 'editing'
+  | 'processing';
 
 type IdentityStatus = 'high-confidence' | 'needs-review';
 
@@ -52,11 +65,22 @@ interface CreatorProfile {
 
 @Component({
   selector: 'app-sources-page',
-  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard, DatePipe],
+  imports: [
+    FormsModule,
+    LensModal,
+    LensButton,
+    LensFormField,
+    LensBadge,
+    LensCard,
+    DatePipe,
+  ],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.css',
 })
 export class SourcesPage implements OnInit {
+  @ViewChild('sourceCarousel')
+  private sourceCarousel?: ElementRef<HTMLElement>;
+
   showAddSource = false;
 
   selectedType: SourceType = 'channel';
@@ -67,8 +91,8 @@ export class SourcesPage implements OnInit {
 
   analysisError = '';
   avatarImageFailed = false;
-  private readonly api = inject(LensApiService);
 
+  private readonly api = inject(LensApiService);
   private readonly changeDetector = inject(ChangeDetectorRef);
 
   selectedBackfill: 'recent' | 'playlists' | 'all' | 'selected' = 'recent';
@@ -78,14 +102,56 @@ export class SourcesPage implements OnInit {
   sources: Source[] = [];
   sourcesLoading = false;
   sourcesError = '';
+
   selectedSource: Source | null = null;
+
   sourceVideos: SourceVideo[] = [];
   sourceVideosLoading = false;
   sourceVideosError = '';
-  
+
   ngOnInit(): void {
     this.loadSources();
   }
+
+  scrollSources(direction: 'previous' | 'next'): void {
+    const carousel = this.sourceCarousel?.nativeElement;
+
+    if (!carousel) {
+      return;
+    }
+
+    const amount = Math.max(carousel.clientWidth * 0.82, 280);
+
+    carousel.scrollBy({
+      left: direction === 'next' ? amount : -amount,
+      behavior: 'smooth',
+    });
+  }
+
+  updateSourceVideoStatus(
+    video: SourceVideo,
+    status: NonNullable<SourceVideo['status']>,
+  ): void {
+    const source = this.selectedSource;
+
+    if (!source) {
+      return;
+    }
+
+    this.api
+      .updateSourceVideoStatus(source.sourceKey, video.videoId, status)
+      .subscribe({
+        next: () => {
+          video.status = status;
+          this.changeDetector.detectChanges();
+        },
+
+        error: (error) => {
+          console.error('Failed to update source video status:', error);
+        },
+      });
+  }
+
   private loadSources(): void {
     this.sourcesLoading = true;
     this.sourcesError = '';
@@ -109,12 +175,14 @@ export class SourcesPage implements OnInit {
         console.error('Failed to load sources:', error);
 
         this.sourcesLoading = false;
-        this.sourcesError = 'Unable to load your sources. Confirm the server is running.';
+        this.sourcesError =
+          'Unable to load your sources. Confirm the server is running.';
 
         this.changeDetector.detectChanges();
       },
     });
   }
+
   get modalTitle(): string {
     switch (this.addSourceStep) {
       case 'input':
@@ -141,27 +209,32 @@ export class SourcesPage implements OnInit {
   }
 
   selectSource(source: Source): void {
-  this.selectedSource = source;
-  this.sourceVideos = [];
-  this.sourceVideosLoading = true;
-  this.sourceVideosError = '';
+    this.selectedSource = source;
+    this.sourceVideos = [];
+    this.sourceVideosLoading = true;
+    this.sourceVideosError = '';
 
-this.api.listSourceVideos(source.sourceKey).subscribe({
-  next: (result) => {
-    this.sourceVideos = result.videos;
-    this.sourceVideosLoading = false;
-    this.changeDetector.detectChanges();
-  },
-  error: (error) => {
-    console.error('Failed to load source content:', error);
+    this.api
+      .listSourceVideos(source.sourceKey)
+      .pipe(timeout(10_000))
+      .subscribe({
+        next: (result) => {
+          this.sourceVideos = result.videos;
+          this.sourceVideosLoading = false;
+          this.changeDetector.detectChanges();
+        },
 
-    this.sourceVideosLoading = false;
-    this.sourceVideosError =
-      'Unable to load this source’s content.';
-    this.changeDetector.detectChanges();
-  },
-});
-}
+        error: (error) => {
+          console.error('Failed to load source content:', error);
+
+          this.sourceVideosLoading = false;
+          this.sourceVideosError =
+            'Unable to load this source’s content.';
+
+          this.changeDetector.detectChanges();
+        },
+      });
+  }
 
   get modalDescription(): string {
     switch (this.addSourceStep) {
@@ -191,27 +264,18 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
   openAddSource(): void {
     this.showAddSource = true;
     this.addSourceStep = 'input';
-
     this.sourceUrl = '';
-
     this.creatorProfile = null;
-
     this.analysisError = '';
-
     this.selectedType = 'channel';
-
     this.selectedBackfill = 'recent';
   }
 
   closeAddSource(): void {
     this.showAddSource = false;
-
     this.sourceUrl = '';
-
     this.creatorProfile = null;
-
     this.analysisError = '';
-
     this.addSourceStep = 'input';
   }
 
@@ -219,7 +283,9 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
     this.selectedType = type;
   }
 
-  selectBackfill(option: 'recent' | 'playlists' | 'all' | 'selected'): void {
+  selectBackfill(
+    option: 'recent' | 'playlists' | 'all' | 'selected',
+  ): void {
     this.selectedBackfill = option;
   }
 
@@ -231,7 +297,6 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
     }
 
     this.addSourceStep = 'analyzing';
-
     this.analysisError = '';
 
     this.api
@@ -249,7 +314,6 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
             'LENS did not receive a usable response. Confirm the server is running, then try again.';
 
           this.addSourceStep = 'error';
-
           this.changeDetector.detectChanges();
         },
       });
@@ -265,27 +329,21 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
           : 'Enter a complete, valid source URL and try again.';
 
       this.addSourceStep = 'error';
-
       this.changeDetector.detectChanges();
 
       return;
     }
 
-    /*
-     * Always trust the backend's detected source type.
-     */
-    if (result.type === 'channel' || result.type === 'playlist' || result.type === 'video') {
+    if (
+      result.type === 'channel' ||
+      result.type === 'playlist' ||
+      result.type === 'video'
+    ) {
       this.selectedType = result.type;
     }
 
-    /*
-     * Videos and playlists continue using the
-     * metadata returned by the analysis endpoint.
-     */
     this.creatorProfile = this.buildDraftCreatorProfile(result);
-
     this.sourceUrl = result.url;
-
     this.addSourceStep = 'profile';
 
     this.changeDetector.detectChanges();
@@ -293,7 +351,6 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
 
   returnToSourceInput(): void {
     this.analysisError = '';
-
     this.addSourceStep = 'input';
   }
 
@@ -319,7 +376,6 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
     }
 
     console.log('Profile saved:', this.creatorProfile);
-
     this.addSourceStep = 'profile';
   }
 
@@ -332,12 +388,11 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
       return;
     }
 
-    /*
-     * YouTube channel processing is currently the first
-     * real processing path implemented by the backend.
-     */
     if (this.selectedType !== 'channel') {
-      console.warn('Processing is not implemented yet for:', this.selectedType);
+      console.warn(
+        'Processing is not implemented yet for:',
+        this.selectedType,
+      );
 
       return;
     }
@@ -347,25 +402,18 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
     this.api.syncYouTubeChannel(this.sourceUrl.trim()).subscribe({
       next: (result) => {
         if (result.status === 'failed') {
-          this.analysisError = result.message ?? 'LENS could not process this YouTube channel.';
+          this.analysisError =
+            result.message ??
+            'LENS could not process this YouTube channel.';
 
           this.addSourceStep = 'error';
-
           this.changeDetector.detectChanges();
 
           return;
         }
 
-        /*
-         * The backend has successfully completed the sync.
-         *
-         * Refresh the source list so the newly persisted
-         * source is immediately reflected in the page.
-         */
         this.loadSources();
-
         this.closeAddSource();
-
         this.changeDetector.detectChanges();
       },
 
@@ -376,26 +424,22 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
           'LENS could not process this YouTube channel. Confirm the server is running, then try again.';
 
         this.addSourceStep = 'error';
-
         this.changeDetector.detectChanges();
       },
     });
   }
 
-  private buildDraftCreatorProfile(result: AnalyzeSourceResponse): CreatorProfile {
+  private buildDraftCreatorProfile(
+    result: AnalyzeSourceResponse,
+  ): CreatorProfile {
     const identity = result.creatorIdentity;
-
     const channel = result.channel;
 
     return {
-      /*
-       * Priority:
-       *
-       * 1. Verified/resolved channel metadata
-       * 2. Creator identity returned by backend
-       * 3. Safe unresolved fallback
-       */
-      name: channel?.name ?? identity?.displayName ?? 'Creator identity not yet resolved',
+      name:
+        channel?.name ??
+        identity?.displayName ??
+        'Creator identity not yet resolved',
 
       sourceType: this.selectedType,
 
@@ -403,36 +447,22 @@ this.api.listSourceVideos(source.sourceKey).subscribe({
 
       avatarUrl: channel?.thumbnailUrl ?? null,
 
-      /*
-       * If the backend has actual channel metadata,
-       * use its description.
-       *
-       * Otherwise use the identity basis so the UI
-       * explains where the information came from.
-       */
       selfDescription:
         channel?.description ??
         identity?.basis ??
         'No creator information was returned by the source.',
 
-      /*
-       * These remain deliberately conservative until
-       * LENS has actual source-content analysis.
-       */
       relevantExpertise: 'Not yet verified',
 
       education: 'Not provided or independently verified',
 
-      professionalExperience: 'Not provided or independently verified',
+      professionalExperience:
+        'Not provided or independently verified',
 
       perspective: 'To be classified by you',
 
       evidenceStyle: 'To be assessed from source content',
 
-      /*
-       * User classification remains separate from
-       * source-derived information.
-       */
       userPerspective: '',
 
       userRelevantFor: '',
