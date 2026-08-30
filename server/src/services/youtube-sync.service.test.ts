@@ -172,6 +172,81 @@ test("persists source sync state and deduplicates by stable videoId", async () =
   }
 });
 
+test("claims unowned legacy videos without allowing ownership to be stolen", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lens-youtube-ownership-"));
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+    await store.getVideo("LEGACY-VIDEO");
+    /*
+     * Create the video directly as an unowned legacy record.
+     */
+    const db = new DatabaseSync(databasePath);
+
+    db.prepare(
+      `
+      INSERT INTO youtube_videos (
+        source_key,
+        video_id,
+        title,
+        url,
+        published_at,
+        discovered_at,
+        status
+      )
+      VALUES (NULL, ?, ?, ?, ?, NULL, NULL)
+      `,
+    ).run(
+      "LEGACY-VIDEO",
+      "Legacy Video",
+      "https://www.youtube.com/watch?v=LEGACY-VIDEO",
+      "2026-08-28T00:00:00+00:00",
+    );
+
+    db.close();
+
+    const unowned = await store.getVideo("LEGACY-VIDEO");
+
+    assert.ok(unowned);
+    assert.equal(unowned.sourceKey, null);
+
+    /*
+     * Source A claims the legacy video.
+     */
+    const claimedByA = await store.claimVideo(
+      "LEGACY-VIDEO",
+      "youtube:channel-id:source-a",
+    );
+
+    assert.equal(claimedByA, true);
+
+    const ownedByA = await store.getVideo("LEGACY-VIDEO");
+
+    assert.ok(ownedByA);
+    assert.equal(ownedByA.sourceKey, "youtube:channel-id:source-a");
+
+    /*
+     * Source B must not be able to steal ownership.
+     */
+    const claimedByB = await store.claimVideo(
+      "LEGACY-VIDEO",
+      "youtube:channel-id:source-b",
+    );
+
+    assert.equal(claimedByB, false);
+
+    const finalOwnership = await store.getVideo("LEGACY-VIDEO");
+
+    assert.ok(finalOwnership);
+    assert.equal(finalOwnership.sourceKey, "youtube:channel-id:source-a");
+  } finally {
+    /*
+     * Temporary database is isolated under tmpdir().
+     */
+  }
+});
+
 test("does not advance successful sync state when channel ID cannot be resolved", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lens-youtube-sync-"));
   const databasePath = join(directory, "sync.sqlite");

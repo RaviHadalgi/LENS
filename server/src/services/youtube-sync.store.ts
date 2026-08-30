@@ -8,10 +8,11 @@ import type {
   YouTubeSyncState,
 } from "../models/source.model";
 
-const DEFAULT_PATH = resolve(
-  process.cwd(),
-  "data/youtube-sync.sqlite",
-);
+const DEFAULT_PATH = resolve(process.cwd(), "data/youtube-sync.sqlite");
+
+export interface SourceInventory {
+  contentCount: number;
+}
 
 export interface SourceAccount {
   sourceKey: string;
@@ -47,9 +48,7 @@ export class YouTubeSyncStore {
     this.filePath = filePath;
   }
 
-  async getSource(
-    sourceKey: string,
-  ): Promise<YouTubeSyncState | null> {
+  async getSource(sourceKey: string): Promise<YouTubeSyncState | null> {
     const account = await this.getSourceAccount(sourceKey);
 
     if (!account) {
@@ -66,9 +65,7 @@ export class YouTubeSyncStore {
     };
   }
 
-  async getSourceAccount(
-    sourceKey: string,
-  ): Promise<SourceAccount | null> {
+  async getSourceAccount(sourceKey: string): Promise<SourceAccount | null> {
     const row = this.database()
       .prepare(
         `
@@ -93,34 +90,47 @@ export class YouTubeSyncStore {
     return row ?? null;
   }
 
-  async listSourceAccounts(): Promise<SourceAccount[]> {
+  async listSourceAccounts(): Promise<Array<SourceAccount & SourceInventory>> {
     const rows = this.database()
       .prepare(
         `
-        SELECT
-          source_key AS sourceKey,
-          platform,
-          source_type AS sourceType,
-          external_id AS externalId,
-          url,
-          handle,
-          status,
-          last_checked_at AS lastCheckedAt,
-          last_successful_sync_at AS lastSuccessfulSyncAt,
-          created_at AS createdAt,
-          updated_at AS updatedAt
-        FROM source_accounts
-        ORDER BY updated_at DESC
+      SELECT
+        sa.source_key AS sourceKey,
+        sa.platform,
+        sa.source_type AS sourceType,
+        sa.external_id AS externalId,
+        sa.url,
+        sa.handle,
+        sa.status,
+        sa.last_checked_at AS lastCheckedAt,
+        sa.last_successful_sync_at AS lastSuccessfulSyncAt,
+        sa.created_at AS createdAt,
+        sa.updated_at AS updatedAt,
+        COUNT(yv.video_id) AS contentCount
+      FROM source_accounts sa
+      LEFT JOIN youtube_videos yv
+        ON yv.source_key = sa.source_key
+      GROUP BY
+        sa.source_key,
+        sa.platform,
+        sa.source_type,
+        sa.external_id,
+        sa.url,
+        sa.handle,
+        sa.status,
+        sa.last_checked_at,
+        sa.last_successful_sync_at,
+        sa.created_at,
+        sa.updated_at
+      ORDER BY sa.updated_at DESC
       `,
       )
-      .all() as unknown as SourceAccount[];
+      .all() as unknown as Array<SourceAccount & SourceInventory>;
 
     return rows;
   }
 
-  async upsertSourceAccount(
-    source: UpsertSourceAccountInput,
-  ): Promise<void> {
+  async upsertSourceAccount(source: UpsertSourceAccountInput): Promise<void> {
     const now = new Date().toISOString();
 
     this.database()
@@ -174,9 +184,7 @@ export class YouTubeSyncStore {
    * Keep this while the sync service continues to work with
    * YouTubeSyncState.
    */
-  async upsertSource(
-    source: YouTubeSyncState,
-  ): Promise<void> {
+  async upsertSource(source: YouTubeSyncState): Promise<void> {
     await this.upsertSourceAccount({
       sourceKey: source.sourceId,
       platform: "youtube",
@@ -186,8 +194,7 @@ export class YouTubeSyncStore {
       handle: source.handle,
       status: "active",
       lastCheckedAt: source.lastCheckedAt,
-      lastSuccessfulSyncAt:
-        source.lastSuccessfulSyncAt,
+      lastSuccessfulSyncAt: source.lastSuccessfulSyncAt,
     });
   }
 
@@ -201,11 +208,49 @@ export class YouTubeSyncStore {
         LIMIT 1
       `,
       )
-      .get(videoId) as
-      | { found: number }
-      | undefined;
+      .get(videoId) as { found: number } | undefined;
 
     return Boolean(row);
+  }
+
+  async getVideo(videoId: string): Promise<{
+    videoId: string;
+    sourceKey: string | null;
+  } | null> {
+    const row = this.database()
+      .prepare(
+        `
+      SELECT
+        video_id AS videoId,
+        source_key AS sourceKey
+      FROM youtube_videos
+      WHERE video_id = ?
+      LIMIT 1
+      `,
+      )
+      .get(videoId) as
+      | {
+          videoId: string;
+          sourceKey: string | null;
+        }
+      | undefined;
+
+    return row ?? null;
+  }
+
+  async claimVideo(videoId: string, sourceKey: string): Promise<boolean> {
+    const result = this.database()
+      .prepare(
+        `
+      UPDATE youtube_videos
+      SET source_key = ?
+      WHERE video_id = ?
+        AND source_key IS NULL
+      `,
+      )
+      .run(sourceKey, videoId);
+
+    return result.changes > 0;
   }
 
   async upsertVideo(
@@ -215,23 +260,22 @@ export class YouTubeSyncStore {
     this.database()
       .prepare(
         `
-        INSERT INTO youtube_videos (
-          source_key,
-          video_id,
-          title,
-          url,
-          published_at,
-          discovered_at,
-          status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(video_id) DO UPDATE SET
-          source_key = excluded.source_key,
-          title = excluded.title,
-          url = excluded.url,
-          published_at = excluded.published_at,
-          discovered_at = excluded.discovered_at,
-          status = excluded.status
+      INSERT INTO youtube_videos (
+        source_key,
+        video_id,
+        title,
+        url,
+        published_at,
+        discovered_at,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(video_id) DO UPDATE SET
+        title = excluded.title,
+        url = excluded.url,
+        published_at = excluded.published_at,
+        discovered_at = excluded.discovered_at,
+        status = excluded.status
       `,
       )
       .run(
@@ -274,9 +318,7 @@ export class YouTubeSyncStore {
 
   private initializeSchema(): void {
     if (!this.db) {
-      throw new Error(
-        "Database must be opened before initializing schema.",
-      );
+      throw new Error("Database must be opened before initializing schema.");
     }
 
     this.db.exec(`
@@ -320,9 +362,7 @@ export class YouTubeSyncStore {
 
   private migrateYouTubeVideos(): void {
     if (!this.db) {
-      throw new Error(
-        "Database must be opened before migration.",
-      );
+      throw new Error("Database must be opened before migration.");
     }
 
     const columns = this.db
@@ -357,9 +397,7 @@ export class YouTubeSyncStore {
     /*
      * Existing database already has source ownership.
      */
-    const hasSourceKey = columns.some(
-      (column) => column.name === "source_key",
-    );
+    const hasSourceKey = columns.some((column) => column.name === "source_key");
 
     if (hasSourceKey) {
       return;

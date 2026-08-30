@@ -94,7 +94,7 @@ export class YouTubeSyncService {
           sourceKey: unresolvedSourceKey,
           platform: "youtube",
           sourceType: "channel",
-          externalId: '',
+          externalId: "",
           url: normalizedUrl,
           handle,
           status: "needs-review",
@@ -218,20 +218,53 @@ export class YouTubeSyncService {
 
     try {
       for (const video of result.videos) {
-        if (await this.store.hasVideo(video.videoId)) {
-          skipped.push({
-            ...video,
-            status: "skipped",
-          });
+        const existingVideo = await this.store.getVideo(video.videoId);
 
-          /*
-           * The YouTube RSS feed is newest-first.
-           *
-           * Once we encounter a known video, older entries are already
-           * represented in our database, so stop scanning.
-           */
-          break;
-        }
+if (existingVideo) {
+  /*
+   * Legacy videos may exist without source ownership.
+   *
+   * If this sync encounters an unowned legacy video, claim it for
+   * the current source. claimVideo() only updates rows whose
+   * source_key is NULL, so ownership can never be stolen.
+   */
+  if (existingVideo.sourceKey === null) {
+    const claimed = await this.store.claimVideo(
+      video.videoId,
+      sourceKey,
+    );
+
+    if (claimed) {
+      discovered.push({
+        ...video,
+        discoveredAt: checkedAt,
+        status: "discovered",
+      });
+    } else {
+      skipped.push({
+        ...video,
+        status: "skipped",
+      });
+    }
+  } else {
+    /*
+     * The video is already owned.
+     *
+     * Whether it belongs to this source or another source, do not
+     * overwrite ownership.
+     */
+    skipped.push({
+      ...video,
+      status: "skipped",
+    });
+  }
+
+  /*
+   * The feed is newest-first. A known video marks the point
+   * where older entries are already represented in the database.
+   */
+  break;
+}
 
         const discoveredVideo = {
           ...video,
@@ -239,10 +272,8 @@ export class YouTubeSyncService {
           status: "discovered" as const,
         };
 
-        await this.store.upsertVideo(
-          sourceKey,
-          discoveredVideo,
-        );
+        await this.store.upsertVideo(sourceKey, discoveredVideo);
+
         discovered.push(discoveredVideo);
       }
     } catch {
