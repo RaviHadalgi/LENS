@@ -296,16 +296,67 @@ export class SourcesPage implements OnInit {
     this.addSourceStep = 'profile';
   }
 
-  startProcessing(): void {
-    console.log('LENS processing started', {
-      sourceType: this.selectedType,
-      sourceUrl: this.sourceUrl,
-      backfill: this.selectedBackfill,
-      creatorProfile: this.creatorProfile,
-    });
-
-    this.closeAddSource();
+startProcessing(): void {
+  if (!this.sourceUrl.trim()) {
+    return;
   }
+
+  /*
+   * YouTube channel processing is currently the first
+   * real processing path implemented by the backend.
+   */
+  if (this.selectedType !== 'channel') {
+    console.warn(
+      'Processing is not implemented yet for:',
+      this.selectedType,
+    );
+
+    return;
+  }
+
+  this.addSourceStep = 'processing';
+
+  this.api
+    .syncYouTubeChannel(this.sourceUrl.trim())
+    .subscribe({
+      next: (result) => {
+        if (result.status === 'failed') {
+          this.analysisError =
+            result.message ??
+            'LENS could not process this YouTube channel.';
+
+          this.addSourceStep = 'error';
+
+          this.changeDetector.detectChanges();
+
+          return;
+        }
+
+        /*
+         * The backend has successfully completed the sync.
+         *
+         * Refresh the source list so the newly persisted
+         * source is immediately reflected in the page.
+         */
+        this.loadSources();
+
+        this.closeAddSource();
+
+        this.changeDetector.detectChanges();
+      },
+
+      error: (error) => {
+        console.error('YouTube processing failed:', error);
+
+        this.analysisError =
+          'LENS could not process this YouTube channel. Confirm the server is running, then try again.';
+
+        this.addSourceStep = 'error';
+
+        this.changeDetector.detectChanges();
+      },
+    });
+}
 
   private buildDraftCreatorProfile(result: AnalyzeSourceResponse): CreatorProfile {
     const identity = result.creatorIdentity;

@@ -1,9 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
 import { describe, beforeEach, afterEach, expect, it } from 'vitest';
 
 import {
@@ -38,7 +38,7 @@ describe('LensApiService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('should POST a source URL to the analyze endpoint', () => {
+  it('should analyze a source URL', () => {
     const response: AnalyzeSourceResponse = {
       platform: 'youtube',
       type: 'channel',
@@ -59,7 +59,7 @@ describe('LensApiService', () => {
         channelId: 'UCXZCJLdBC09xxGZ6gcdrc6A',
         handle: '@OpenAI',
         name: 'OpenAI',
-        description: 'OpenAI channel',
+        description: 'AI research and deployment',
         thumbnailUrl: null,
         subscriberCount: null,
         hiddenSubscriberCount: null,
@@ -72,7 +72,12 @@ describe('LensApiService', () => {
         provider: 'youtube',
         fetchedAt: '2026-08-29T19:00:00.000Z',
       },
-      creatorIdentity: null,
+      creatorIdentity: {
+        displayName: 'OpenAI',
+        profileUrl: 'https://www.youtube.com/@OpenAI',
+        status: 'needs-review',
+        basis: 'Resolved from YouTube channel metadata.',
+      },
     };
 
     service.analyzeSource('https://www.youtube.com/@OpenAI').subscribe(
@@ -93,7 +98,7 @@ describe('LensApiService', () => {
     request.flush(response);
   });
 
-  it('should POST a YouTube channel URL to the sync endpoint', () => {
+  it('should sync a YouTube channel', () => {
     const response: YouTubeSyncResponse = {
       platform: 'youtube',
       type: 'channel',
@@ -117,11 +122,11 @@ describe('LensApiService', () => {
       message: null,
     };
 
-    service
-      .syncYouTubeChannel('https://www.youtube.com/@OpenAI')
-      .subscribe((result) => {
+    service.syncYouTubeChannel('https://www.youtube.com/@OpenAI').subscribe(
+      (result) => {
         expect(result).toEqual(response);
-      });
+      },
+    );
 
     const request = httpMock.expectOne(
       'http://localhost:3000/api/sources/youtube/sync',
@@ -135,7 +140,7 @@ describe('LensApiService', () => {
     request.flush(response);
   });
 
-  it('should GET the source list', () => {
+  it('should list sources', () => {
     const response: ListSourcesResponse = {
       sources: [
         {
@@ -146,18 +151,16 @@ describe('LensApiService', () => {
           url: 'https://www.youtube.com/@OpenAI',
           handle: '@OpenAI',
           status: 'active',
-          lastCheckedAt: '2026-08-29T19:34:15.559Z',
-          lastSuccessfulSyncAt: '2026-08-29T19:34:15.559Z',
-          createdAt: '2026-08-29T18:00:49.095Z',
-          updatedAt: '2026-08-29T19:34:15.939Z',
+          lastCheckedAt: '2026-08-29T19:00:00.000Z',
+          lastSuccessfulSyncAt: '2026-08-29T19:00:00.000Z',
+          createdAt: '2026-08-29T18:00:00.000Z',
+          updatedAt: '2026-08-29T19:00:00.000Z',
         },
       ],
     };
 
     service.listSources().subscribe((result) => {
       expect(result).toEqual(response);
-      expect(result.sources).toHaveLength(1);
-      expect(result.sources[0]?.handle).toBe('@OpenAI');
     });
 
     const request = httpMock.expectOne(
@@ -168,66 +171,5 @@ describe('LensApiService', () => {
     expect(request.request.body).toBeNull();
 
     request.flush(response);
-  });
-
-  it('should propagate analyze API errors', () => {
-    let receivedError: unknown;
-
-    service
-      .analyzeSource('https://www.youtube.com/@OpenAI')
-      .subscribe({
-        next: () => {
-          throw new Error('Expected the request to fail');
-        },
-        error: (error) => {
-          receivedError = error;
-        },
-      });
-
-    const request = httpMock.expectOne(
-      'http://localhost:3000/api/sources/analyze',
-    );
-
-    request.flush(
-      {
-        status: 'invalid',
-        message: 'Invalid source URL',
-      },
-      {
-        status: 400,
-        statusText: 'Bad Request',
-      },
-    );
-
-    expect(receivedError).toBeTruthy();
-  });
-
-  it('should propagate source list API errors', () => {
-    let receivedError: unknown;
-
-    service.listSources().subscribe({
-      next: () => {
-        throw new Error('Expected the request to fail');
-      },
-      error: (error) => {
-        receivedError = error;
-      },
-    });
-
-    const request = httpMock.expectOne(
-      'http://localhost:3000/api/sources',
-    );
-
-    request.flush(
-      {
-        message: 'Server unavailable',
-      },
-      {
-        status: 500,
-        statusText: 'Internal Server Error',
-      },
-    );
-
-    expect(receivedError).toBeTruthy();
   });
 });

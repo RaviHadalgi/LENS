@@ -12,9 +12,28 @@ describe('SourcesPage', () => {
   const apiMock = {
     listSources: vi.fn(),
     analyzeSource: vi.fn(),
+    syncYouTubeChannel: vi.fn(),
   };
 
   beforeEach(async () => {
+    apiMock.syncYouTubeChannel.mockReset();
+
+    apiMock.syncYouTubeChannel.mockReturnValue(
+      of({
+        platform: 'youtube',
+        type: 'channel',
+        url: 'https://youtube.com/@OpenAI',
+        channelId: 'UCXZCJLdBC09xxGZ6gcdrc6A',
+        handle: '@OpenAI',
+        feedUrl: null,
+        status: 'completed',
+        sync: null,
+        discovered: [],
+        skipped: [],
+        newVideos: [],
+        message: null,
+      }),
+    );
     apiMock.listSources.mockReset();
     apiMock.analyzeSource.mockReset();
 
@@ -82,9 +101,7 @@ describe('SourcesPage', () => {
   });
 
   it('should handle source loading errors', () => {
-    apiMock.listSources.mockReturnValue(
-      throwError(() => new Error('Server unavailable')),
-    );
+    apiMock.listSources.mockReturnValue(throwError(() => new Error('Server unavailable')));
 
     component['loadSources']();
 
@@ -148,17 +165,13 @@ describe('SourcesPage', () => {
     component.analyzeSource();
 
     expect(component.addSourceStep).toBe('error');
-    expect(apiMock.analyzeSource).toHaveBeenCalledWith(
-      'https://youtube.com/@OpenAI',
-    );
+    expect(apiMock.analyzeSource).toHaveBeenCalledWith('https://youtube.com/@OpenAI');
   });
 
   it('should handle API analysis failures', () => {
     component.sourceUrl = 'https://youtube.com/@OpenAI';
 
-    apiMock.analyzeSource.mockReturnValue(
-      throwError(() => new Error('Network error')),
-    );
+    apiMock.analyzeSource.mockReturnValue(throwError(() => new Error('Network error')));
 
     component.analyzeSource();
 
@@ -278,5 +291,38 @@ describe('SourcesPage', () => {
     component.cancelProfileEdits();
 
     expect(component.addSourceStep).toBe('profile');
+  });
+
+  it('should process a YouTube channel and close the Add Source flow', () => {
+    component.sourceUrl = 'https://youtube.com/@OpenAI';
+    component.selectedType = 'channel';
+    component.showAddSource = true;
+    component.addSourceStep = 'processing';
+
+    apiMock.analyzeSource.mockReturnValue(of());
+
+    apiMock.syncYouTubeChannel = vi.fn().mockReturnValue(
+      of({
+        platform: 'youtube',
+        type: 'channel',
+        url: 'https://youtube.com/@OpenAI',
+        channelId: 'UCXZCJLdBC09xxGZ6gcdrc6A',
+        handle: '@OpenAI',
+        feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCXZCJLdBC09xxGZ6gcdrc6A',
+        status: 'completed',
+        sync: null,
+        discovered: [],
+        skipped: [],
+        newVideos: [],
+        message: null,
+      }),
+    );
+
+    component.startProcessing();
+
+    expect(apiMock.syncYouTubeChannel).toHaveBeenCalledWith('https://youtube.com/@OpenAI');
+
+    expect(component.showAddSource).toBe(false);
+    expect(component.addSourceStep).toBe('input');
   });
 });
