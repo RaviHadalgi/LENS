@@ -13,11 +13,12 @@ describe('SourcesPage', () => {
     listSources: vi.fn(),
     analyzeSource: vi.fn(),
     syncYouTubeChannel: vi.fn(),
+    listSourceVideos: vi.fn(),
   };
 
   beforeEach(async () => {
     apiMock.syncYouTubeChannel.mockReset();
-
+    apiMock.listSourceVideos.mockReset();
     apiMock.syncYouTubeChannel.mockReturnValue(
       of({
         platform: 'youtube',
@@ -90,6 +91,7 @@ describe('SourcesPage', () => {
     expect(apiMock.listSources).toHaveBeenCalledTimes(2);
     expect(component.sources).toEqual([
       {
+        sourceKey: 'youtube:channel-id:test',
         name: 'test',
         perspective: 'YouTube source',
         contentCount: 5,
@@ -325,5 +327,39 @@ describe('SourcesPage', () => {
 
     expect(component.showAddSource).toBe(false);
     expect(component.addSourceStep).toBe('input');
+  });
+
+  it('loads owned content when a source is selected', () => {
+    const source = {
+      sourceKey: 'youtube:channel-id:uc-test',
+      name: 'test',
+      perspective: 'YouTube source',
+      contentCount: 2,
+      conceptCount: 0,
+      status: 'verified' as const,
+    };
+
+    component.sources = [source];
+
+    apiMock.listSourceVideos.mockReturnValue(
+      of({
+        videos: [
+          {
+            videoId: 'VIDEO-1',
+            title: 'Owned video',
+            url: 'https://youtube.com/watch?v=VIDEO-1',
+            publishedAt: '2026-08-30T00:00:00Z',
+          },
+        ],
+      }),
+    );
+
+    component.selectSource(source);
+
+    expect(apiMock.listSourceVideos).toHaveBeenCalledWith('youtube:channel-id:uc-test');
+    expect(component.selectedSource).toBe(source);
+    expect(component.sourceVideos).toHaveLength(1);
+    expect(component.sourceVideos[0]?.videoId).toBe('VIDEO-1');
+    expect(component.sourceVideosLoading).toBe(false);
   });
 });

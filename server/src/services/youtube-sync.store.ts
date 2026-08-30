@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import type {
   SourceType,
+  SourceVideo,
   YouTubeRecentVideo,
   YouTubeSyncState,
 } from "../models/source.model";
@@ -130,6 +131,30 @@ export class YouTubeSyncStore {
     return rows;
   }
 
+  async listVideosForSource(sourceKey: string): Promise<YouTubeRecentVideo[]> {
+  const rows = this.database()
+    .prepare(
+      `
+      SELECT
+        video_id AS videoId,
+        title,
+        url,
+        published_at AS publishedAt,
+        discovered_at AS discoveredAt,
+        status
+      FROM youtube_videos
+      WHERE source_key = ?
+      ORDER BY
+        published_at DESC,
+        discovered_at DESC,
+        video_id ASC
+      `,
+    )
+    .all(sourceKey) as unknown as YouTubeRecentVideo[];
+
+  return rows;
+}
+
   async upsertSourceAccount(source: UpsertSourceAccountInput): Promise<void> {
     const now = new Date().toISOString();
 
@@ -237,6 +262,30 @@ export class YouTubeSyncStore {
 
     return row ?? null;
   }
+
+  async listSourceVideos(sourceKey: string): Promise<SourceVideo[]> {
+  const rows = this.database()
+    .prepare(
+      `
+      SELECT
+        video_id AS videoId,
+        title,
+        url,
+        published_at AS publishedAt,
+        discovered_at AS discoveredAt,
+        status
+      FROM youtube_videos
+      WHERE source_key = ?
+      ORDER BY
+        published_at DESC,
+        discovered_at DESC,
+        video_id ASC
+      `,
+    )
+    .all(sourceKey) as unknown as SourceVideo[];
+
+  return rows;
+}
 
   async claimVideo(videoId: string, sourceKey: string): Promise<boolean> {
     const result = this.database()

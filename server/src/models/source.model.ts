@@ -101,3 +101,12 @@ export interface AnalyzeSourceResponse {
   creatorIdentity: CreatorIdentityDraft | null;
   sync?: YouTubeSyncResponse | null;
 }
+
+export interface SourceVideo {
+  videoId: string;
+  title: string | null;
+  url: string;
+  publishedAt: string | null;
+  discoveredAt: string | null;
+  status: YouTubeRecentVideo['status'] | null;
+}

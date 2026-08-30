@@ -1,9 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { describe, beforeEach, afterEach, expect, it } from 'vitest';
 
 import {
@@ -19,11 +16,7 @@ describe('LensApiService', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        LensApiService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [LensApiService, provideHttpClient(), provideHttpClientTesting()],
     });
 
     service = TestBed.inject(LensApiService);
@@ -80,15 +73,11 @@ describe('LensApiService', () => {
       },
     };
 
-    service.analyzeSource('https://www.youtube.com/@OpenAI').subscribe(
-      (result) => {
-        expect(result).toEqual(response);
-      },
-    );
+    service.analyzeSource('https://www.youtube.com/@OpenAI').subscribe((result) => {
+      expect(result).toEqual(response);
+    });
 
-    const request = httpMock.expectOne(
-      'http://localhost:3000/api/sources/analyze',
-    );
+    const request = httpMock.expectOne('http://localhost:3000/api/sources/analyze');
 
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({
@@ -105,8 +94,7 @@ describe('LensApiService', () => {
       url: 'https://www.youtube.com/@OpenAI',
       channelId: 'UCXZCJLdBC09xxGZ6gcdrc6A',
       handle: '@OpenAI',
-      feedUrl:
-        'https://www.youtube.com/feeds/videos.xml?channel_id=UCXZCJLdBC09xxGZ6gcdrc6A',
+      feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCXZCJLdBC09xxGZ6gcdrc6A',
       status: 'completed',
       sync: {
         sourceId: 'youtube:channel-id:ucxzcjldbc09xxgz6gcdrc6a',
@@ -122,15 +110,11 @@ describe('LensApiService', () => {
       message: null,
     };
 
-    service.syncYouTubeChannel('https://www.youtube.com/@OpenAI').subscribe(
-      (result) => {
-        expect(result).toEqual(response);
-      },
-    );
+    service.syncYouTubeChannel('https://www.youtube.com/@OpenAI').subscribe((result) => {
+      expect(result).toEqual(response);
+    });
 
-    const request = httpMock.expectOne(
-      'http://localhost:3000/api/sources/youtube/sync',
-    );
+    const request = httpMock.expectOne('http://localhost:3000/api/sources/youtube/sync');
 
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({
@@ -164,13 +148,36 @@ describe('LensApiService', () => {
       expect(result).toEqual(response);
     });
 
-    const request = httpMock.expectOne(
-      'http://localhost:3000/api/sources',
-    );
+    const request = httpMock.expectOne('http://localhost:3000/api/sources');
 
     expect(request.request.method).toBe('GET');
     expect(request.request.body).toBeNull();
 
     request.flush(response);
+  });
+
+  it('lists videos for a source', () => {
+    const sourceKey = 'youtube:channel-id:uc-test';
+
+    service.listSourceVideos(sourceKey).subscribe((result) => {
+      expect(result.videos).toHaveLength(1);
+    });
+
+    const request = httpMock.expectOne(
+  `http://localhost:3000/api/sources/${encodeURIComponent(sourceKey)}/videos`,
+);
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      videos: [
+        {
+          videoId: 'VIDEO-1',
+          title: 'Test video',
+          url: 'https://youtube.com/watch?v=VIDEO-1',
+          publishedAt: '2026-08-30T00:00:00Z',
+        },
+      ],
+    });
   });
 });

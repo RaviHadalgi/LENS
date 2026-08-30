@@ -45,7 +45,6 @@ export interface AnalyzeSourceResponse {
   } | null;
 }
 
-
 export interface YouTubeSyncResponse {
   platform: 'youtube';
   type: 'channel';
@@ -102,11 +101,29 @@ export interface SourceAccount {
   contentCount: number;
 }
 
+export interface SourceVideo {
+  videoId: string;
+  title: string | null;
+  url: string;
+  publishedAt: string | null;
+  discoveredAt: string | null;
+  status:
+    | 'discovered'
+    | 'skipped'
+    | 'processed'
+    | 'failed'
+    | 'needs-review'
+    | null;
+}
+
+export interface ListSourceVideosResponse {
+  sourceKey: string;
+  videos: SourceVideo[];
+}
+
 export interface ListSourcesResponse {
   sources: SourceAccount[];
 }
-
-
 
 @Injectable({
   providedIn: 'root',
@@ -127,4 +144,14 @@ export class LensApiService {
   listSources(): Observable<ListSourcesResponse> {
     return this.http.get<ListSourcesResponse>(`${this.baseUrl}/sources`);
   }
+
+  listSourceVideos(
+    sourceKey: string,
+  ): Observable<ListSourceVideosResponse> {
+    return this.http.get<ListSourceVideosResponse>(
+      `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos`,
+    );
+  }
+
+  
 }

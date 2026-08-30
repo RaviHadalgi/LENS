@@ -172,6 +172,258 @@ test("persists source sync state and deduplicates by stable videoId", async () =
   }
 });
 
+test("reports content inventory only for videos owned by each source", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "lens-youtube-inventory-"),
+  );
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+
+    await store.getVideo("inventory-initialize");
+
+    const db = new DatabaseSync(databasePath);
+
+    db.prepare(
+      `
+      INSERT INTO source_accounts (
+        source_key,
+        platform,
+        source_type,
+        external_id,
+        url,
+        handle,
+        status,
+        last_checked_at,
+        last_successful_sync_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      "youtube:channel-id:source-a",
+      "youtube",
+      "channel",
+      "UCA",
+      "https://youtube.com/channel/UCA",
+      "@sourceA",
+      "active",
+      null,
+      null,
+      "2026-08-30T00:00:00.000Z",
+      "2026-08-30T00:00:00.000Z",
+    );
+
+    db.prepare(
+      `
+      INSERT INTO source_accounts (
+        source_key,
+        platform,
+        source_type,
+        external_id,
+        url,
+        handle,
+        status,
+        last_checked_at,
+        last_successful_sync_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      "youtube:channel-id:source-b",
+      "youtube",
+      "channel",
+      "UCB",
+      "https://youtube.com/channel/UCB",
+      "@sourceB",
+      "active",
+      null,
+      null,
+      "2026-08-30T00:00:00.000Z",
+      "2026-08-30T00:00:00.000Z",
+    );
+
+    db.prepare(
+      `
+      INSERT INTO youtube_videos (
+        source_key,
+        video_id,
+        title,
+        url,
+        published_at,
+        discovered_at,
+        status
+      )
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?),
+        (?, ?, ?, ?, ?, ?, ?),
+        (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      "youtube:channel-id:source-a",
+      "A-1",
+      "Source A video 1",
+      "https://youtube.com/watch?v=A-1",
+      "2026-08-29T00:00:00.000Z",
+      "2026-08-30T00:00:00.000Z",
+      "discovered",
+
+      "youtube:channel-id:source-a",
+      "A-2",
+      "Source A video 2",
+      "https://youtube.com/watch?v=A-2",
+      "2026-08-28T00:00:00.000Z",
+      "2026-08-30T00:00:00.000Z",
+      "discovered",
+
+      "youtube:channel-id:source-b",
+      "B-1",
+      "Source B video 1",
+      "https://youtube.com/watch?v=B-1",
+      "2026-08-27T00:00:00.000Z",
+      "2026-08-30T00:00:00.000Z",
+      "discovered",
+    );
+
+    db.prepare(
+      `
+      INSERT INTO youtube_videos (
+        source_key,
+        video_id,
+        title,
+        url,
+        published_at,
+        discovered_at,
+        status
+      )
+      VALUES (NULL, ?, ?, ?, ?, NULL, NULL)
+      `,
+    ).run(
+      "LEGACY-UNOWNED",
+      "Legacy unowned video",
+      "https://youtube.com/watch?v=LEGACY-UNOWNED",
+      "2026-08-26T00:00:00.000Z",
+    );
+
+    db.close();
+
+    const sources = await store.listSourceAccounts();
+
+    const sourceA = sources.find(
+      (source) => source.sourceKey === "youtube:channel-id:source-a",
+    );
+
+    const sourceB = sources.find(
+      (source) => source.sourceKey === "youtube:channel-id:source-b",
+    );
+
+    assert.ok(sourceA);
+    assert.ok(sourceB);
+
+    assert.equal(sourceA.contentCount, 2);
+    assert.equal(sourceB.contentCount, 1);
+
+    /*
+     * The unowned legacy video must not appear in either
+     * source's inventory.
+     */
+    assert.equal(
+      sources.reduce(
+        (total, source) => total + source.contentCount,
+        0,
+      ),
+      3,
+    );
+
+    await store.close();
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+
+test("lists only content owned by the requested source", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "lens-youtube-content-"),
+  );
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+
+    await store.getVideo("initialize");
+
+    const db = new DatabaseSync(databasePath);
+
+    db.prepare(
+      `
+      INSERT INTO youtube_videos (
+        source_key,
+        video_id,
+        title,
+        url,
+        published_at,
+        discovered_at,
+        status
+      )
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?),
+        (?, ?, ?, ?, ?, ?, ?),
+        (?, ?, ?, ?, ?, ?, ?)
+      `,
+    ).run(
+      "youtube:channel-id:source-a",
+      "A-1",
+      "A newest",
+      "https://youtube.com/watch?v=A-1",
+      "2026-08-30T00:00:00.000Z",
+      "2026-08-30T01:00:00.000Z",
+      "discovered",
+
+      "youtube:channel-id:source-a",
+      "A-2",
+      "A older",
+      "https://youtube.com/watch?v=A-2",
+      "2026-08-29T00:00:00.000Z",
+      "2026-08-29T01:00:00.000Z",
+      "processed",
+
+      "youtube:channel-id:source-b",
+      "B-1",
+      "B video",
+      "https://youtube.com/watch?v=B-1",
+      "2026-08-31T00:00:00.000Z",
+      "2026-08-31T01:00:00.000Z",
+      "discovered",
+    );
+
+    db.close();
+
+    const videos = await store.listVideosForSource(
+      "youtube:channel-id:source-a",
+    );
+
+    assert.equal(videos.length, 2);
+    assert.equal(videos[0]?.videoId, "A-1");
+    assert.equal(videos[1]?.videoId, "A-2");
+    assert.equal(videos[0]?.title, "A newest");
+    assert.equal(videos[1]?.status, "processed");
+
+    await store.close();
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+
 test("claims unowned legacy videos without allowing ownership to be stolen", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lens-youtube-ownership-"));
   const databasePath = join(directory, "sync.sqlite");
@@ -244,6 +496,78 @@ test("claims unowned legacy videos without allowing ownership to be stolen", asy
     /*
      * Temporary database is isolated under tmpdir().
      */
+  }
+});
+
+test('lists videos only for the owning source', async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lens-source-inventory-"));
+  const databasePath = join(directory, "inventory.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+
+    await store.upsertSourceAccount({
+      sourceKey: "youtube:channel-id:source-a",
+      platform: "youtube",
+      sourceType: "channel",
+      externalId: "SOURCE-A",
+      url: "https://youtube.com/channel/SOURCE-A",
+      handle: "@sourcea",
+      status: "active",
+      lastCheckedAt: null,
+      lastSuccessfulSyncAt: null,
+    });
+
+    await store.upsertSourceAccount({
+      sourceKey: "youtube:channel-id:source-b",
+      platform: "youtube",
+      sourceType: "channel",
+      externalId: "SOURCE-B",
+      url: "https://youtube.com/channel/SOURCE-B",
+      handle: "@sourceb",
+      status: "active",
+      lastCheckedAt: null,
+      lastSuccessfulSyncAt: null,
+    });
+
+    await store.upsertVideo(
+      "youtube:channel-id:source-a",
+      {
+        videoId: "AAA",
+        title: "Source A video",
+        url: "https://youtube.com/watch?v=AAA",
+        publishedAt: "2026-08-30T00:00:00+00:00",
+      },
+    );
+
+    await store.upsertVideo(
+      "youtube:channel-id:source-b",
+      {
+        videoId: "BBB",
+        title: "Source B video",
+        url: "https://youtube.com/watch?v=BBB",
+        publishedAt: "2026-08-29T00:00:00+00:00",
+      },
+    );
+
+    const sourceAVideos =
+      await store.listSourceVideos(
+        "youtube:channel-id:source-a",
+      );
+
+    assert.equal(sourceAVideos.length, 1);
+    assert.equal(sourceAVideos[0]?.videoId, "AAA");
+    assert.equal(sourceAVideos[0]?.title, "Source A video");
+
+    const sourceBVideos =
+      await store.listSourceVideos(
+        "youtube:channel-id:source-b",
+      );
+
+    assert.equal(sourceBVideos.length, 1);
+    assert.equal(sourceBVideos[0]?.videoId, "BBB");
+  } finally {
+    // close/cleanup according to the existing test pattern
   }
 });
 

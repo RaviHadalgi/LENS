@@ -42,7 +42,7 @@
 
     <div class="source-grid">
       @for (source of sources; track source.name) {
-        <app-lens-card [interactive]="true">
+        <app-lens-card [interactive]="true" (click)="selectSource(source)" [class.selected]="selectedSource?.sourceKey === source.sourceKey">
           <div class="source-top">
             <div class="source-avatar">
               {{ source.name.charAt(0) }}
@@ -78,6 +78,50 @@
           }
         </app-lens-card>
       }
+      @if (selectedSource) {
+  <section class="source-inventory">
+    <div class="source-inventory-header">
+      <div>
+        <h2>{{ selectedSource.name }} content</h2>
+        <p>
+          {{ selectedSource.contentCount }} items owned by this source
+        </p>
+      </div>
+    </div>
+
+    @if (sourceVideosLoading) {
+      <div class="source-inventory-state">
+        Loading content…
+      </div>
+    } @else if (sourceVideosError) {
+      <div class="source-inventory-state" role="alert">
+        {{ sourceVideosError }}
+      </div>
+    } @else if (sourceVideos.length === 0) {
+      <div class="source-inventory-state">
+        No content has been discovered for this source yet.
+      </div>
+    } @else {
+      <div class="source-video-list">
+        @for (video of sourceVideos; track video.videoId) {
+          <a
+            class="source-video"
+            [href]="video.url"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <div>
+              <strong>{{ video.title || 'Untitled video' }}</strong>
+              @if (video.publishedAt) {
+                <span>{{ video.publishedAt | date }}</span>
+              }
+            </div>
+          </a>
+        }
+      </div>
+    }
+  </section>
+}
     </div>
   </section>
 

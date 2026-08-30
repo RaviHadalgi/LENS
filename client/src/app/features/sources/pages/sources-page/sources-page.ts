@@ -9,13 +9,19 @@ import { LensFormField } from '../../../../shared/components/lens-form-field/len
 import { LensButton } from '../../../../shared/components/lens-button/lens-button';
 import { LensApiService } from '../../../../core/services/lens-api.service';
 
-import type { SourceType, AnalyzeSourceResponse } from '../../../../core/services/lens-api.service';
+import type {
+  SourceType,
+  AnalyzeSourceResponse,
+  SourceVideo,
+} from '../../../../core/services/lens-api.service';
+import { DatePipe } from '@angular/common';
 
 type AddSourceStep = 'input' | 'analyzing' | 'error' | 'profile' | 'editing' | 'processing';
 
 type IdentityStatus = 'high-confidence' | 'needs-review';
 
 interface Source {
+  sourceKey: string;
   name: string;
   perspective: string;
   contentCount: number;
@@ -46,7 +52,7 @@ interface CreatorProfile {
 
 @Component({
   selector: 'app-sources-page',
-  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard],
+  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard, DatePipe],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.css',
 })
@@ -72,7 +78,11 @@ export class SourcesPage implements OnInit {
   sources: Source[] = [];
   sourcesLoading = false;
   sourcesError = '';
-
+  selectedSource: Source | null = null;
+  sourceVideos: SourceVideo[] = [];
+  sourceVideosLoading = false;
+  sourceVideosError = '';
+  
   ngOnInit(): void {
     this.loadSources();
   }
@@ -83,13 +93,11 @@ export class SourcesPage implements OnInit {
     this.api.listSources().subscribe({
       next: (result) => {
         this.sources = result.sources.map((source) => ({
+          sourceKey: source.sourceKey,
           name: source.handle?.replace(/^@/, '') || source.externalId,
-
           perspective: 'YouTube source',
-
           contentCount: source.contentCount,
           conceptCount: 0,
-
           status: source.status === 'active' ? 'verified' : 'review',
         }));
 
@@ -131,6 +139,29 @@ export class SourcesPage implements OnInit {
         return 'LENS';
     }
   }
+
+  selectSource(source: Source): void {
+  this.selectedSource = source;
+  this.sourceVideos = [];
+  this.sourceVideosLoading = true;
+  this.sourceVideosError = '';
+
+this.api.listSourceVideos(source.sourceKey).subscribe({
+  next: (result) => {
+    this.sourceVideos = result.videos;
+    this.sourceVideosLoading = false;
+    this.changeDetector.detectChanges();
+  },
+  error: (error) => {
+    console.error('Failed to load source content:', error);
+
+    this.sourceVideosLoading = false;
+    this.sourceVideosError =
+      'Unable to load this source’s content.';
+    this.changeDetector.detectChanges();
+  },
+});
+}
 
   get modalDescription(): string {
     switch (this.addSourceStep) {
@@ -296,34 +327,27 @@ export class SourcesPage implements OnInit {
     this.addSourceStep = 'profile';
   }
 
-startProcessing(): void {
-  if (!this.sourceUrl.trim()) {
-    return;
-  }
+  startProcessing(): void {
+    if (!this.sourceUrl.trim()) {
+      return;
+    }
 
-  /*
-   * YouTube channel processing is currently the first
-   * real processing path implemented by the backend.
-   */
-  if (this.selectedType !== 'channel') {
-    console.warn(
-      'Processing is not implemented yet for:',
-      this.selectedType,
-    );
+    /*
+     * YouTube channel processing is currently the first
+     * real processing path implemented by the backend.
+     */
+    if (this.selectedType !== 'channel') {
+      console.warn('Processing is not implemented yet for:', this.selectedType);
 
-    return;
-  }
+      return;
+    }
 
-  this.addSourceStep = 'processing';
+    this.addSourceStep = 'processing';
 
-  this.api
-    .syncYouTubeChannel(this.sourceUrl.trim())
-    .subscribe({
+    this.api.syncYouTubeChannel(this.sourceUrl.trim()).subscribe({
       next: (result) => {
         if (result.status === 'failed') {
-          this.analysisError =
-            result.message ??
-            'LENS could not process this YouTube channel.';
+          this.analysisError = result.message ?? 'LENS could not process this YouTube channel.';
 
           this.addSourceStep = 'error';
 
@@ -356,7 +380,7 @@ startProcessing(): void {
         this.changeDetector.detectChanges();
       },
     });
-}
+  }
 
   private buildDraftCreatorProfile(result: AnalyzeSourceResponse): CreatorProfile {
     const identity = result.creatorIdentity;
