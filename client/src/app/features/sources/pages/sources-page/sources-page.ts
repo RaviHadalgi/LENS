@@ -87,7 +87,7 @@ export class SourcesPage implements OnInit {
 
           perspective: 'YouTube source',
 
-          contentCount: 0,
+          contentCount: source.contentCount,
           conceptCount: 0,
 
           status: source.status === 'active' ? 'verified' : 'review',

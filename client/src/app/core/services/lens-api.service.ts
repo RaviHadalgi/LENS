@@ -99,6 +99,7 @@ export interface SourceAccount {
   lastSuccessfulSyncAt: string | null;
   createdAt: string;
   updatedAt: string;
+  contentCount: number;
 }
 
 export interface ListSourcesResponse {

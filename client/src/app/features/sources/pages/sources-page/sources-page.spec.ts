@@ -79,6 +79,7 @@ describe('SourcesPage', () => {
             lastSuccessfulSyncAt: '2026-08-29T19:00:00.000Z',
             createdAt: '2026-08-29T18:00:00.000Z',
             updatedAt: '2026-08-29T19:00:00.000Z',
+            contentCount: 5,
           },
         ],
       }),
@@ -91,7 +92,7 @@ describe('SourcesPage', () => {
       {
         name: 'test',
         perspective: 'YouTube source',
-        contentCount: 0,
+        contentCount: 5,
         conceptCount: 0,
         status: 'verified',
       },

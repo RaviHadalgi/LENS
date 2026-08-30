@@ -155,6 +155,7 @@ describe('LensApiService', () => {
           lastSuccessfulSyncAt: '2026-08-29T19:00:00.000Z',
           createdAt: '2026-08-29T18:00:00.000Z',
           updatedAt: '2026-08-29T19:00:00.000Z',
+          contentCount: 0,
         },
       ],
     };
