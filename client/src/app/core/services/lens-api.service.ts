@@ -107,14 +107,7 @@ export interface SourceVideo {
   url: string;
   publishedAt: string | null;
   discoveredAt: string | null;
-  status:
-    | 'discovered'
-    | 'skipped'
-    | 'processed'
-    | 'failed'
-    | 'needs-review'
-    | 'processing'
-    | null;
+  status: 'discovered' | 'skipped' | 'processed' | 'failed' | 'needs-review' | 'processing' | null;
 }
 
 export interface ListSourceVideosResponse {
@@ -146,29 +139,40 @@ export class LensApiService {
     return this.http.get<ListSourcesResponse>(`${this.baseUrl}/sources`);
   }
 
-  listSourceVideos(
-    sourceKey: string,
-  ): Observable<ListSourceVideosResponse> {
+  listSourceVideos(sourceKey: string): Observable<ListSourceVideosResponse> {
     return this.http.get<ListSourceVideosResponse>(
       `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos`,
     );
   }
 
-  updateSourceVideoStatus(
-  sourceKey: string,
-  videoId: string,
-  status: SourceVideo['status'],
-) {
-  return this.http.patch<{
+  updateSourceVideoStatus(sourceKey: string, videoId: string, status: SourceVideo['status']) {
+    return this.http.patch<{
+      sourceKey: string;
+      videoId: string;
+      status: NonNullable<SourceVideo['status']>;
+    }>(
+      `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos/${encodeURIComponent(videoId)}/status`,
+      {
+        status,
+      },
+    );
+  }
+
+  processSourceVideo(
+    sourceKey: string,
+    videoId: string,
+  ): Observable<{
     sourceKey: string;
     videoId: string;
-    status: NonNullable<SourceVideo['status']>;
-  }>(
-    `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos/${encodeURIComponent(videoId)}/status`,
-    {
-      status,
-    },
-  );
-}
-  
+    status: 'processing';
+  }> {
+    return this.http.post<{
+      sourceKey: string;
+      videoId: string;
+      status: 'processing';
+    }>(
+      `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos/${encodeURIComponent(videoId)}/process`,
+      {},
+    );
+  }
 }

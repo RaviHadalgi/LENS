@@ -359,6 +359,10 @@ export class YouTubeSyncService {
     return this.store.updateVideoStatus(videoId, sourceKey, status);
   }
 
+  async processVideo(videoId: string, sourceKey: string): Promise<boolean> {
+    return this.store.updateVideoStatus(videoId, sourceKey, "processing");
+  }
+
   private detectChannel(url: URL): {
     externalId: string;
     channelLookup: YouTubeChannelLookup;

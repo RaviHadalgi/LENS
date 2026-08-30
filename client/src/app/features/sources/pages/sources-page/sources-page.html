@@ -186,7 +186,7 @@
                       type="button"
                       [disabled]="updatingVideoIds.has(video.videoId)"
                       class="video-action video-action-primary"
-                      (click)="updateSourceVideoStatus(video, 'processing')"
+                      (click)="processSourceVideo(video)"
                     >
                       Start processing
                     </button>

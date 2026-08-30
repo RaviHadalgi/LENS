@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
 
-import type { AnalyzeSourceRequest, YouTubeRecentVideo } from "../models/source.model";
+import type {
+  AnalyzeSourceRequest,
+  YouTubeRecentVideo,
+} from "../models/source.model";
 import { SourceService } from "../services/source.service";
 import { YouTubeSyncService } from "../services/youtube-sync.service";
 import { YouTubeSyncStore } from "../services/youtube-sync.store";
-import router from "../routes/source.routes";
 
 const sourceService = new SourceService();
 const youtubeSyncService = new YouTubeSyncService();
@@ -83,12 +85,12 @@ export async function listSourceVideos(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const sourceKey = req.params['sourceKey'];
+  const sourceKey = req.params["sourceKey"];
 
-  if (typeof sourceKey !== 'string' || sourceKey.length === 0) {
+  if (typeof sourceKey !== "string" || sourceKey.length === 0) {
     res.status(400).json({
-      status: 'invalid',
-      message: 'A source key is required.',
+      status: "invalid",
+      message: "A source key is required.",
     });
     return;
   }
@@ -97,8 +99,8 @@ export async function listSourceVideos(
 
   if (!source) {
     res.status(404).json({
-      status: 'not-found',
-      message: 'Source not found.',
+      status: "not-found",
+      message: "Source not found.",
     });
     return;
   }
@@ -185,4 +187,49 @@ export async function updateSourceVideoStatus(
   });
 }
 
+export async function processSourceVideo(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sourceKey = req.params["sourceKey"];
+  const videoId = req.params["videoId"];
 
+  if (
+    typeof sourceKey !== "string" ||
+    sourceKey.length === 0 ||
+    typeof videoId !== "string" ||
+    videoId.length === 0
+  ) {
+    res.status(400).json({
+      status: "invalid",
+      message: "A source key and video ID are required.",
+    });
+    return;
+  }
+
+  const source = await youtubeSyncStore.getSourceAccount(sourceKey);
+
+  if (!source) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Source not found.",
+    });
+    return;
+  }
+
+  const processed = await youtubeSyncService.processVideo(videoId, sourceKey);
+
+  if (!processed) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Video not found for this source.",
+    });
+    return;
+  }
+
+  res.status(200).json({
+    sourceKey,
+    videoId,
+    status: "processing",
+  });
+}

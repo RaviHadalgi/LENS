@@ -173,9 +173,7 @@ test("persists source sync state and deduplicates by stable videoId", async () =
 });
 
 test("reports content inventory only for videos owned by each source", async () => {
-  const directory = await mkdtemp(
-    join(tmpdir(), "lens-youtube-inventory-"),
-  );
+  const directory = await mkdtemp(join(tmpdir(), "lens-youtube-inventory-"));
   const databasePath = join(directory, "sync.sqlite");
 
   try {
@@ -332,10 +330,7 @@ test("reports content inventory only for videos owned by each source", async () 
      * source's inventory.
      */
     assert.equal(
-      sources.reduce(
-        (total, source) => total + source.contentCount,
-        0,
-      ),
+      sources.reduce((total, source) => total + source.contentCount, 0),
       3,
     );
 
@@ -349,9 +344,7 @@ test("reports content inventory only for videos owned by each source", async () 
 });
 
 test("lists only content owned by the requested source", async () => {
-  const directory = await mkdtemp(
-    join(tmpdir(), "lens-youtube-content-"),
-  );
+  const directory = await mkdtemp(join(tmpdir(), "lens-youtube-content-"));
   const databasePath = join(directory, "sync.sqlite");
 
   try {
@@ -405,9 +398,7 @@ test("lists only content owned by the requested source", async () => {
 
     db.close();
 
-    const videos = await store.listSourceVideos(
-      "youtube:channel-id:source-a",
-    );
+    const videos = await store.listSourceVideos("youtube:channel-id:source-a");
 
     assert.equal(videos.length, 2);
     assert.equal(videos[0]?.videoId, "A-1");
@@ -499,7 +490,7 @@ test("claims unowned legacy videos without allowing ownership to be stolen", asy
   }
 });
 
-test('lists videos only for the owning source', async () => {
+test("lists videos only for the owning source", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lens-source-inventory-"));
   const databasePath = join(directory, "inventory.sqlite");
 
@@ -530,39 +521,31 @@ test('lists videos only for the owning source', async () => {
       lastSuccessfulSyncAt: null,
     });
 
-    await store.upsertVideo(
+    await store.upsertVideo("youtube:channel-id:source-a", {
+      videoId: "AAA",
+      title: "Source A video",
+      url: "https://youtube.com/watch?v=AAA",
+      publishedAt: "2026-08-30T00:00:00+00:00",
+    });
+
+    await store.upsertVideo("youtube:channel-id:source-b", {
+      videoId: "BBB",
+      title: "Source B video",
+      url: "https://youtube.com/watch?v=BBB",
+      publishedAt: "2026-08-29T00:00:00+00:00",
+    });
+
+    const sourceAVideos = await store.listSourceVideos(
       "youtube:channel-id:source-a",
-      {
-        videoId: "AAA",
-        title: "Source A video",
-        url: "https://youtube.com/watch?v=AAA",
-        publishedAt: "2026-08-30T00:00:00+00:00",
-      },
     );
-
-    await store.upsertVideo(
-      "youtube:channel-id:source-b",
-      {
-        videoId: "BBB",
-        title: "Source B video",
-        url: "https://youtube.com/watch?v=BBB",
-        publishedAt: "2026-08-29T00:00:00+00:00",
-      },
-    );
-
-    const sourceAVideos =
-      await store.listSourceVideos(
-        "youtube:channel-id:source-a",
-      );
 
     assert.equal(sourceAVideos.length, 1);
     assert.equal(sourceAVideos[0]?.videoId, "AAA");
     assert.equal(sourceAVideos[0]?.title, "Source A video");
 
-    const sourceBVideos =
-      await store.listSourceVideos(
-        "youtube:channel-id:source-b",
-      );
+    const sourceBVideos = await store.listSourceVideos(
+      "youtube:channel-id:source-b",
+    );
 
     assert.equal(sourceBVideos.length, 1);
     assert.equal(sourceBVideos[0]?.videoId, "BBB");
@@ -626,24 +609,19 @@ test("does not advance successful sync state when channel ID cannot be resolved"
 });
 
 test("updates the processing status of an owned video", async () => {
-  const directory = await mkdtemp(
-    join(tmpdir(), "lens-youtube-video-status-"),
-  );
+  const directory = await mkdtemp(join(tmpdir(), "lens-youtube-video-status-"));
   const databasePath = join(directory, "sync.sqlite");
 
   try {
     const store = new YouTubeSyncStore(databasePath);
 
-    await store.upsertVideo(
-      "youtube:channel-id:source-a",
-      {
-        videoId: "STATUS-1",
-        title: "Status test video",
-        url: "https://youtube.com/watch?v=STATUS-1",
-        publishedAt: "2026-08-30T00:00:00.000Z",
-        status: "discovered",
-      },
-    );
+    await store.upsertVideo("youtube:channel-id:source-a", {
+      videoId: "STATUS-1",
+      title: "Status test video",
+      url: "https://youtube.com/watch?v=STATUS-1",
+      publishedAt: "2026-08-30T00:00:00.000Z",
+      status: "discovered",
+    });
 
     await store.updateVideoStatus(
       "STATUS-1",
@@ -651,13 +629,90 @@ test("updates the processing status of an owned video", async () => {
       "processed",
     );
 
-    const videos = await store.listSourceVideos(
-      "youtube:channel-id:source-a",
-    );
+    const videos = await store.listSourceVideos("youtube:channel-id:source-a");
 
     assert.equal(videos.length, 1);
     assert.equal(videos[0]?.videoId, "STATUS-1");
     assert.equal(videos[0]?.status, "processed");
+
+    await store.close();
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+
+test("starts processing an owned video", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "lens-youtube-video-processing-"),
+  );
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+    const service = new YouTubeSyncService(store);
+
+    const sourceKey = "youtube:channel-id:test";
+    const videoId = "video-processing-test";
+
+    await store.upsertVideo(sourceKey, {
+      videoId,
+      title: "Processing test",
+      url: `https://youtube.com/watch?v=${videoId}`,
+      publishedAt: null,
+      status: "needs-review",
+    });
+
+    const result = await service.processVideo(videoId, sourceKey);
+
+    assert.equal(result, true);
+
+    const videos = await store.listSourceVideos(sourceKey);
+
+    assert.equal(videos.length, 1);
+    assert.equal(videos[0]?.status, "processing");
+
+    await store.close();
+  } finally {
+    await rm(directory, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+
+test("does not start processing a video owned by another source", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "lens-youtube-video-processing-ownership-"),
+  );
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+    const service = new YouTubeSyncService(store);
+
+    const sourceKey = "youtube:channel-id:test";
+    const otherSourceKey = "youtube:channel-id:other";
+    const videoId = "video-processing-ownership-test";
+
+    await store.upsertVideo(sourceKey, {
+      videoId,
+      title: "Ownership test",
+      url: `https://youtube.com/watch?v=${videoId}`,
+      publishedAt: null,
+      status: "needs-review",
+    });
+
+    const result = await service.processVideo(videoId, otherSourceKey);
+
+    assert.equal(result, false);
+
+    const videos = await store.listSourceVideos(sourceKey);
+
+    assert.equal(videos.length, 1);
+    assert.equal(videos[0]?.status, "needs-review");
 
     await store.close();
   } finally {
@@ -676,16 +731,13 @@ test("does not update processing status when the source does not own the video",
   try {
     const store = new YouTubeSyncStore(databasePath);
 
-    await store.upsertVideo(
-      "youtube:channel-id:source-a",
-      {
-        videoId: "OWNED-STATUS-1",
-        title: "Owned status test video",
-        url: "https://youtube.com/watch?v=OWNED-STATUS-1",
-        publishedAt: "2026-08-30T00:00:00.000Z",
-        status: "discovered",
-      },
-    );
+    await store.upsertVideo("youtube:channel-id:source-a", {
+      videoId: "OWNED-STATUS-1",
+      title: "Owned status test video",
+      url: "https://youtube.com/watch?v=OWNED-STATUS-1",
+      publishedAt: "2026-08-30T00:00:00.000Z",
+      status: "discovered",
+    });
 
     const updated = await store.updateVideoStatus(
       "OWNED-STATUS-1",
@@ -695,9 +747,7 @@ test("does not update processing status when the source does not own the video",
 
     assert.equal(updated, false);
 
-    const videos = await store.listSourceVideos(
-      "youtube:channel-id:source-a",
-    );
+    const videos = await store.listSourceVideos("youtube:channel-id:source-a");
 
     assert.equal(videos.length, 1);
     assert.equal(videos[0]?.status, "discovered");

@@ -1,11 +1,4 @@
-import {
-  ChangeDetectorRef,
-  Component,
-  ElementRef,
-  inject,
-  OnInit,
-  ViewChild,
-} from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { timeout } from 'rxjs';
@@ -23,13 +16,7 @@ import type {
   SourceVideo,
 } from '../../../../core/services/lens-api.service';
 
-type AddSourceStep =
-  | 'input'
-  | 'analyzing'
-  | 'error'
-  | 'profile'
-  | 'editing'
-  | 'processing';
+type AddSourceStep = 'input' | 'analyzing' | 'error' | 'profile' | 'editing' | 'processing';
 
 type IdentityStatus = 'high-confidence' | 'needs-review';
 
@@ -65,15 +52,7 @@ interface CreatorProfile {
 
 @Component({
   selector: 'app-sources-page',
-  imports: [
-    FormsModule,
-    LensModal,
-    LensButton,
-    LensFormField,
-    LensBadge,
-    LensCard,
-    DatePipe,
-  ],
+  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard, DatePipe],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.css',
 })
@@ -129,22 +108,17 @@ export class SourcesPage implements OnInit {
     });
   }
 
-updateSourceVideoStatus(
-  video: SourceVideo,
-  status: NonNullable<SourceVideo['status']>,
-): void {
-  const source = this.selectedSource;
+  updateSourceVideoStatus(video: SourceVideo, status: NonNullable<SourceVideo['status']>): void {
+    const source = this.selectedSource;
 
-  if (!source || this.updatingVideoIds.has(video.videoId)) {
-    return;
-  }
+    if (!source || this.updatingVideoIds.has(video.videoId)) {
+      return;
+    }
 
-  this.updatingVideoIds.add(video.videoId);
-  this.changeDetector.detectChanges();
+    this.updatingVideoIds.add(video.videoId);
+    this.changeDetector.detectChanges();
 
-  this.api
-    .updateSourceVideoStatus(source.sourceKey, video.videoId, status)
-    .subscribe({
+    this.api.updateSourceVideoStatus(source.sourceKey, video.videoId, status).subscribe({
       next: () => {
         video.status = status;
         this.updatingVideoIds.delete(video.videoId);
@@ -157,7 +131,33 @@ updateSourceVideoStatus(
         this.changeDetector.detectChanges();
       },
     });
-}
+  }
+
+  processSourceVideo(video: SourceVideo): void {
+    const source = this.selectedSource;
+
+    if (!source || this.updatingVideoIds.has(video.videoId)) {
+      return;
+    }
+
+    this.updatingVideoIds.add(video.videoId);
+    this.changeDetector.detectChanges();
+
+    this.api.processSourceVideo(source.sourceKey, video.videoId).subscribe({
+      next: () => {
+        video.status = 'processing';
+        this.updatingVideoIds.delete(video.videoId);
+        this.changeDetector.detectChanges();
+      },
+
+      error: (error) => {
+        console.error('Failed to start source video processing:', error);
+
+        this.updatingVideoIds.delete(video.videoId);
+        this.changeDetector.detectChanges();
+      },
+    });
+  }
 
   private loadSources(): void {
     this.sourcesLoading = true;
@@ -182,8 +182,7 @@ updateSourceVideoStatus(
         console.error('Failed to load sources:', error);
 
         this.sourcesLoading = false;
-        this.sourcesError =
-          'Unable to load your sources. Confirm the server is running.';
+        this.sourcesError = 'Unable to load your sources. Confirm the server is running.';
 
         this.changeDetector.detectChanges();
       },
@@ -235,8 +234,7 @@ updateSourceVideoStatus(
           console.error('Failed to load source content:', error);
 
           this.sourceVideosLoading = false;
-          this.sourceVideosError =
-            'Unable to load this source’s content.';
+          this.sourceVideosError = 'Unable to load this source’s content.';
 
           this.changeDetector.detectChanges();
         },
@@ -290,9 +288,7 @@ updateSourceVideoStatus(
     this.selectedType = type;
   }
 
-  selectBackfill(
-    option: 'recent' | 'playlists' | 'all' | 'selected',
-  ): void {
+  selectBackfill(option: 'recent' | 'playlists' | 'all' | 'selected'): void {
     this.selectedBackfill = option;
   }
 
@@ -341,11 +337,7 @@ updateSourceVideoStatus(
       return;
     }
 
-    if (
-      result.type === 'channel' ||
-      result.type === 'playlist' ||
-      result.type === 'video'
-    ) {
+    if (result.type === 'channel' || result.type === 'playlist' || result.type === 'video') {
       this.selectedType = result.type;
     }
 
@@ -396,10 +388,7 @@ updateSourceVideoStatus(
     }
 
     if (this.selectedType !== 'channel') {
-      console.warn(
-        'Processing is not implemented yet for:',
-        this.selectedType,
-      );
+      console.warn('Processing is not implemented yet for:', this.selectedType);
 
       return;
     }
@@ -409,9 +398,7 @@ updateSourceVideoStatus(
     this.api.syncYouTubeChannel(this.sourceUrl.trim()).subscribe({
       next: (result) => {
         if (result.status === 'failed') {
-          this.analysisError =
-            result.message ??
-            'LENS could not process this YouTube channel.';
+          this.analysisError = result.message ?? 'LENS could not process this YouTube channel.';
 
           this.addSourceStep = 'error';
           this.changeDetector.detectChanges();
@@ -436,17 +423,12 @@ updateSourceVideoStatus(
     });
   }
 
-  private buildDraftCreatorProfile(
-    result: AnalyzeSourceResponse,
-  ): CreatorProfile {
+  private buildDraftCreatorProfile(result: AnalyzeSourceResponse): CreatorProfile {
     const identity = result.creatorIdentity;
     const channel = result.channel;
 
     return {
-      name:
-        channel?.name ??
-        identity?.displayName ??
-        'Creator identity not yet resolved',
+      name: channel?.name ?? identity?.displayName ?? 'Creator identity not yet resolved',
 
       sourceType: this.selectedType,
 
@@ -463,8 +445,7 @@ updateSourceVideoStatus(
 
       education: 'Not provided or independently verified',
 
-      professionalExperience:
-        'Not provided or independently verified',
+      professionalExperience: 'Not provided or independently verified',
 
       perspective: 'To be classified by you',
 
