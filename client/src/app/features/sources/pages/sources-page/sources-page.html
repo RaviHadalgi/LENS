@@ -103,6 +103,12 @@
               {{ selectedSource.contentCount === 1 ? 'item' : 'items' }}
               owned by this source
             </p>
+            @if (firstVideoDate && latestVideoDate) {
+              <div class="source-date-range" aria-label="Source video date range">
+                <span>First video: {{ firstVideoDate | date: 'mediumDate' }}</span>
+                <span>Latest video: {{ latestVideoDate | date: 'mediumDate' }}</span>
+              </div>
+            }
           </div>
 
           <div class="source-inventory-actions">
@@ -111,7 +117,10 @@
               size="small"
               type="button"
               [loading]="fetchingLatestSourceKey === selectedSource.sourceKey"
-              [disabled]="fetchingLatestSourceKey !== null && fetchingLatestSourceKey !== selectedSource.sourceKey"
+              [disabled]="
+                fetchingLatestSourceKey !== null &&
+                fetchingLatestSourceKey !== selectedSource.sourceKey
+              "
               (click)="fetchLatestContent(selectedSource)"
             >
               Fetch latest
@@ -150,166 +159,205 @@
           <div class="source-inventory-state">
             No content has been discovered for this source yet.
           </div>
-        } @else {
+        } @else if (currentVideoWeek; as videoWeek) {
+          <div class="video-week-heading">
+            <div>
+              <strong>
+                @if (videoWeek.weekStart && videoWeek.weekEnd) {
+                  {{ videoWeek.weekStart | date: 'mediumDate' }}–{{
+                    videoWeek.weekEnd | date: 'mediumDate'
+                  }}
+                } @else {
+                  Date unavailable
+                }
+              </strong>
+              <span>
+                {{ videoWeek.videos.length }}
+                {{ videoWeek.videos.length === 1 ? 'video' : 'videos' }} this week
+              </span>
+            </div>
+            <span>Week {{ currentVideoWeekIndex + 1 }} of {{ videoWeeks.length }} loaded</span>
+          </div>
+
           <div class="source-video-list">
-            @for (video of sourceVideos; track video.videoId) {
+            @for (video of videoWeek.videos; track video.videoId) {
               <article class="source-video">
-                <div class="source-video-main">
+                <header class="source-video-header">
                   <a
-                    class="source-video-link"
+                    class="video-thumbnail"
                     [href]="video.url"
                     target="_blank"
                     rel="noopener noreferrer"
+                    [attr.aria-label]="'Open ' + getVideoTitle(video.title) + ' on YouTube'"
                   >
-                    <strong>
-                      {{ video.title || 'Untitled video' }}
-                    </strong>
-
-                    @if (video.publishedAt) {
-                      <span>{{ video.publishedAt | date }}</span>
-                    }
+                    <span class="video-thumbnail-placeholder" aria-hidden="true">▶</span>
+                    <img
+                      [src]="getVideoThumbnail(video.videoId)"
+                      alt=""
+                      loading="lazy"
+                      (error)="hideBrokenThumbnail($event)"
+                    />
                   </a>
 
-                  <div class="source-video-status">
-                    @if (video.status === 'needs-review') {
-                      <span class="status-pill status-review">
-                        <span class="status-dot"></span>
-                        Needs review
-                      </span>
-                    } @else if (video.status === 'processed') {
-                      <span class="status-pill status-processed">
-                        <span class="status-dot"></span>
-                        Processed
-                      </span>
-                    } @else if (video.status === 'failed') {
-                      <span class="status-pill status-failed">
-                        <span class="status-dot"></span>
-                        Failed
-                      </span>
-                    } @else if (video.status === 'processing') {
-                      <span class="status-pill status-processing">
-                        <span class="status-dot"></span>
-                        Processing
-                      </span>
-                    } @else {
-                      <span class="status-pill status-discovered">
-                        <span class="status-dot"></span>
-                        Discovered
-                      </span>
+                  <div class="source-video-heading">
+                    <a
+                      class="source-video-title"
+                      [href]="video.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {{ getVideoTitle(video.title) }}
+                    </a>
+
+                    @if (video.publishedAt) {
+                      <time [attr.datetime]="video.publishedAt">
+                        Published {{ video.publishedAt | date: 'mediumDate' }}
+                      </time>
+                    }
+
+                    @if (getVideoHashtags(video.title); as hashtags) {
+                      @if (hashtags.length > 0) {
+                        <div class="video-categories" aria-label="Video categories">
+                          @for (hashtag of hashtags; track hashtag) {
+                            <span>{{ hashtag }}</span>
+                          }
+                        </div>
+                      }
                     }
                   </div>
-                </div>
 
-                <div class="source-video-actions">
-                  @if (video.status === 'discovered') {
-                    <button
-                      type="button"
-                      [disabled]="updatingVideoIds.has(video.videoId)"
-                      class="video-action video-action-secondary"
-                      (click)="updateSourceVideoStatus(video, 'needs-review')"
-                    >
-                      Needs review
-                    </button>
+                  @if (video.status !== 'processing') {
+                    <details class="video-menu">
+                      <summary aria-label="Video actions">•••</summary>
+                      <div class="video-menu-panel" role="menu">
+                        @if (video.status === 'discovered' || video.status === 'skipped') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            [disabled]="updatingVideoIds.has(video.videoId)"
+                            (click)="updateSourceVideoStatus(video, 'needs-review')"
+                          >
+                            Move to review
+                          </button>
+                        }
+
+                        @if (video.status === 'needs-review') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="openVideoProcessing(video)"
+                          >
+                            Add transcript
+                          </button>
+                        }
+
+                        @if (video.status === 'failed') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="openVideoProcessing(video)"
+                          >
+                            Retry processing
+                          </button>
+                        }
+
+                        @if (video.status === 'processed') {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            (click)="openVideoProcessing(video)"
+                          >
+                            Modify transcript
+                          </button>
+                        }
+
+                        @if (video.sourceStatements.length > 0) {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            class="danger"
+                            (click)="openDeleteTranscriptConfirmation(video)"
+                          >
+                            Delete transcript
+                          </button>
+                        }
+                      </div>
+                    </details>
                   }
+                </header>
 
-                  @if (video.status === 'needs-review') {
-                    <button
-                      type="button"
-                      [disabled]="updatingVideoIds.has(video.videoId)"
-                      class="video-action video-action-primary"
-                      (click)="openVideoProcessing(video)"
-                    >
-                      Add transcript
-                    </button>
-                  }
-
-                  @if (video.status === 'failed') {
-                    <button
-                      type="button"
-                      [disabled]="updatingVideoIds.has(video.videoId)"
-                      class="video-action video-action-primary"
-                      (click)="openVideoProcessing(video)"
-                    >
-                      Retry processing
-                    </button>
-                  }
-
-                </div>
-
-                @if (processingSummaries.get(video.videoId); as summary) {
-                  <p class="processing-summary">{{ summary }}</p>
-                } @else if (video.status === 'processed' && video.currentVersionId) {
-                  <p class="processing-summary">
+                <div class="source-video-metadata" aria-label="Video processing metadata">
+                  <app-lens-badge [tone]="getVideoStatusTone(video.status)" [pill]="true">
+                    {{ getVideoStatusLabel(video.status) }}
+                  </app-lens-badge>
+                  <span class="metadata-item">
                     {{ video.claimCount }} source
-                    {{ video.claimCount === 1 ? 'statement' : 'statements' }} saved as version
-                    {{ video.currentVersionId }}.
-                  </p>
-                }
+                    {{ video.claimCount === 1 ? 'statement' : 'statements' }}
+                  </span>
+                  @if (video.currentVersionId) {
+                    <span class="metadata-item">Version {{ video.currentVersionId }}</span>
+                  }
+                </div>
 
                 @if (video.sourceStatements.length > 0) {
-                  <section class="saved-transcript" aria-label="Saved transcript">
-                    <div class="saved-transcript-bar">
-                      <button
-                        type="button"
-                        class="saved-transcript-toggle"
-                        [attr.aria-expanded]="isTranscriptExpanded(video.videoId)"
-                        [attr.aria-controls]="'saved-transcript-' + video.videoId"
-                        (click)="toggleTranscript(video.videoId)"
-                      >
-                        <span
-                          class="saved-transcript-chevron"
-                          aria-hidden="true"
-                        >{{ isTranscriptExpanded(video.videoId) ? '⌄' : '›' }}</span>
-                        <span>
-                          <strong>View transcript / summary</strong>
-                          <small>
-                          {{ video.sourceStatements.length }}
-                          {{ video.sourceStatements.length === 1 ? 'statement' : 'statements' }}
-                            @if (video.currentVersionId) {
-                              · Version {{ video.currentVersionId }}
-                            }
-                          </small>
-                        </span>
-                      </button>
-
-                      <div class="source-video-actions">
-                        <button
-                          type="button"
-                          class="video-action video-action-secondary"
-                          [disabled]="updatingVideoIds.has(video.videoId)"
-                          (click)="openVideoProcessing(video)"
-                        >
-                          Modify
-                        </button>
-                        <button
-                          type="button"
-                          class="video-action video-action-secondary"
-                          [disabled]="updatingVideoIds.has(video.videoId)"
-                          (click)="openDeleteTranscriptConfirmation(video)"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
+                  <section class="video-knowledge" aria-label="Saved knowledge">
+                    <button
+                      type="button"
+                      class="knowledge-toggle"
+                      [attr.aria-expanded]="isTranscriptExpanded(video.videoId)"
+                      [attr.aria-controls]="'video-knowledge-' + video.videoId"
+                      (click)="toggleTranscript(video.videoId)"
+                    >
+                      <span>
+                        <strong>Knowledge</strong>
+                        <small>Source transcript available</small>
+                      </span>
+                      <span class="knowledge-chevron" aria-hidden="true">
+                        {{ isTranscriptExpanded(video.videoId) ? '⌄' : '›' }}
+                      </span>
+                    </button>
 
                     @if (isTranscriptExpanded(video.videoId)) {
-                      <div
-                        class="saved-transcript-statements"
-                        [id]="'saved-transcript-' + video.videoId"
-                      >
-                        @for (statement of video.sourceStatements; track $index) {
-                          <article class="saved-transcript-statement">
-                            @if (formatStatementTimestamp(statement); as timestamp) {
-                              <span class="statement-timestamp">{{ timestamp }}</span>
-                            }
+                      <div class="knowledge-content" [id]="'video-knowledge-' + video.videoId">
+                        <div class="knowledge-tabs" role="tablist" aria-label="Available knowledge">
+                          <button type="button" role="tab" aria-selected="true">Transcript</button>
+                        </div>
 
-                            <p>{{ statement.text }}</p>
+                        <div class="transcript-provenance">
+                          <span>Source transcript</span>
+                          @if (video.currentVersionId) {
+                            <span>Version {{ video.currentVersionId }}</span>
+                          }
+                          <a [href]="video.url" target="_blank" rel="noopener noreferrer">
+                            Open source ↗
+                          </a>
+                        </div>
 
-                            @if (formatStatementContext(statement); as context) {
-                              <small>{{ context }}</small>
-                            }
-                          </article>
-                        }
+                        <div class="source-statements" role="tabpanel">
+                          @for (statement of video.sourceStatements; track $index) {
+                            <article class="source-statement">
+                              <div class="statement-meta">
+                                @if (formatStatementTimestamp(statement); as timestamp) {
+                                  <a
+                                    class="statement-timestamp"
+                                    [href]="getStatementSourceUrl(video, statement)"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    >{{ timestamp }}</a
+                                  >
+                                } @else {
+                                  <span>Statement {{ $index + 1 }}</span>
+                                }
+
+                                @if (formatStatementContext(statement); as context) {
+                                  <span>{{ context }}</span>
+                                }
+                              </div>
+
+                              <p>{{ statement.text }}</p>
+                            </article>
+                          }
+                        </div>
                       </div>
                     }
                   </section>
@@ -323,6 +371,7 @@
                       section as a source statement without inventing missing content.
                     </p>
                     <textarea
+                      class="lens-textarea transcript-input"
                       [id]="'transcript-' + video.videoId"
                       [(ngModel)]="processingTranscript"
                       rows="8"
@@ -333,32 +382,72 @@
                       <p class="transcript-error" role="alert">{{ processingError }}</p>
                     }
                     <div class="transcript-actions">
-                      <button
+                      <app-lens-button
                         type="button"
-                        class="video-action video-action-secondary"
+                        variant="secondary"
+                        size="small"
                         [disabled]="updatingVideoIds.has(video.videoId)"
                         (click)="cancelVideoProcessing()"
                       >
                         Cancel
-                      </button>
-                      <button
+                      </app-lens-button>
+                      <app-lens-button
                         type="button"
-                        class="video-action video-action-primary"
-                        [disabled]="updatingVideoIds.has(video.videoId) || !processingTranscript.trim()"
+                        size="small"
+                        [disabled]="
+                          updatingVideoIds.has(video.videoId) || !processingTranscript.trim()
+                        "
                         (click)="processSourceVideo(video)"
                       >
-                        {{ updatingVideoIds.has(video.videoId) ? 'Processing…' : 'Process transcript' }}
-                      </button>
+                        {{
+                          updatingVideoIds.has(video.videoId) ? 'Processing…' : 'Process transcript'
+                        }}
+                      </app-lens-button>
                     </div>
                   </div>
                 }
               </article>
             }
           </div>
+
+          <nav class="video-week-pagination" aria-label="Video weeks">
+            <app-lens-button
+              variant="secondary"
+              size="small"
+              type="button"
+              [disabled]="currentVideoWeekIndex === 0 || loadingOlderVideoWeek"
+              (click)="showNewerVideoWeek()"
+            >
+              ‹ Newer week
+            </app-lens-button>
+            <app-lens-button
+              variant="secondary"
+              size="small"
+              type="button"
+              [disabled]="loadingOlderVideoWeek || olderVideoWeeksExhausted"
+              (click)="showOlderVideoWeek()"
+            >
+              @if (loadingOlderVideoWeek) {
+                Loading from YouTube ({{ videoWeekLoadAttempt }}/3)…
+              } @else if (olderVideoWeeksExhausted) {
+                No older week available
+              } @else {
+                Older week ›
+              }
+            </app-lens-button>
+          </nav>
+
+          @if (videoWeekError) {
+            <p class="video-week-error" role="alert">{{ videoWeekError }}</p>
+          }
         }
       </section>
     }
   </section>
+
+  @if (processingToast) {
+    <app-lens-toast [message]="processingToast.message" (dismissed)="dismissProcessingToast()" />
+  }
 
   <app-lens-modal
     [open]="showDeleteSource"
@@ -412,9 +501,7 @@
     @if (videoPendingTranscriptDeletion) {
       <div class="delete-source-warning">
         <strong>{{ videoPendingTranscriptDeletion.title || 'Untitled video' }}</strong>
-        <p>
-          The source and video will stay in your library. You can add a new transcript later.
-        </p>
+        <p>The source and video will stay in your library. You can add a new transcript later.</p>
       </div>
 
       @if (deleteTranscriptError) {

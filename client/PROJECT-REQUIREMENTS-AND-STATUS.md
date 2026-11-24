@@ -26,8 +26,8 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | --- | --- | --- | --- |
 | Calm, non-technical interface around Listen, Extract, Navigate, and Synthesize | **Partial** | A consistent application shell, sidebar, top bar, cards, badges, buttons, fields, and modal patterns are present. Technical ingestion details are mostly hidden. | Complete the core product pages and replace placeholder content with real knowledge workflows. |
 | Main areas: Ask, Sources, Knowledge, Review, Compare, Life, and Settings | **Partial** | Ask and Sources have routes. The sidebar shows the broader information architecture. | Implement routes and working pages for Knowledge, Review, Compare, Life, and Settings. |
-| Responsive desktop-first experience | **Partial** | The shell, source modal, cards, and source inventory have responsive styling. | Test and refine all final workflows at supported desktop/tablet sizes and define accessibility targets. |
-| Shared reusable UI components | **Implemented** | The client uses shared `LensButton`, `LensCard`, `LensBadge`, `LensFormField`, and `LensModal` components plus reusable Ask components. | Expand the system with tables, empty/error states, evidence displays, review controls, and notifications. |
+| Responsive desktop-first experience | **Partial** | The shell, source modal, compact video cards, week navigation, overflow actions, and knowledge panels adapt across desktop and mobile layouts. | Test and refine all final workflows at supported desktop/tablet sizes and define accessibility targets. |
+| Shared reusable UI components | **Implemented** | The client uses shared `LensButton`, `LensCard`, `LensBadge`, `LensFormField`, `LensModal`, and temporary `LensToast` components plus reusable Ask components. | Expand the system with tables, empty/error states, evidence displays, review controls, and notifications. |
 | Make source material, LENS synthesis, and user judgment visually distinct | **Partial** | Saved transcript panels explicitly label verbatim source material, while Ask cards and perspective labels demonstrate the intended synthesis presentation. | Bind Ask to real data and add explicit labels for verification and user notes. |
 
 ### Sources and ingestion
@@ -39,9 +39,9 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Review and edit creator identity without fabricated credentials | **Partial** | The profile step uses public metadata, marks identity for review, and avoids inventing biography or credentials. Editable profile controls exist. | Persist edits to the server, store evidence, distinguish self-claims from independent evidence, and support later correction. |
 | Choose full channel, playlists, recent videos, or selected videos | **Partial** | Backfill choices are represented in the add-source interface. | Connect each selection to a distinct server request; current channel sync uses the recent public feed regardless of the visual choice. |
 | Save a source library | **Implemented** | The Sources page loads persisted source accounts from the server and displays source type, state, inventory size, and sync details. | Add search/filter, optional archive, health indicators, and source settings. |
-| Fetch latest content from a saved source without duplicates | **Implemented** | A selected source has a Fetch latest action. It refreshes the saved source through its source key, reloads the inventory, updates the item count, prevents overlapping refreshes, and reports whether new content was added or the source was already current. Server-side stable-ID handling prevents duplicates. | Add scheduled refresh, notification preferences, and refresh support for future playlist/direct-video sources. |
+| Fetch latest content from a saved source without duplicates | **Implemented** | A selected source has a Fetch latest action. It refreshes the saved source through its source key, reloads the inventory, updates the item count, prevents overlapping refreshes, returns to the newest week, and reports whether new content was added or the source was already current. Server-side stable-ID handling prevents duplicates. | Add scheduled refresh, notification preferences, and refresh support for future playlist/direct-video sources. |
 | Delete a source with explicit confirmation | **Implemented** | A selected source has a Remove source action. A modal explains that associated content and history will be deleted; Cancel/close leaves the source unchanged, while Remove calls the deletion API and clears the deleted source from the interface. Server errors keep the source and modal available for retry. | Extend the warning text if future source-owned data categories are added. |
-| Show per-source content inventory, saved transcripts, and processing status | **Implemented** | Selecting a source loads its videos with published date, workflow status, current version, and statement count. A closed “View transcript / summary” accordion reveals persisted verbatim statements, optional readable timestamps, and a contained long-text view. Modify preloads the saved text; Delete uses confirmation and clears all transcript data. | Add pagination, sorting, richer failure details, processing history, prior-version browsing, and individual statement/timestamp editing. |
+| Show per-source content inventory, saved transcripts, and processing status | **Implemented** | Selecting a source shows its first/latest loaded video dates and groups videos into newest-first Monday-to-Sunday pages. Newer/Older controls traverse loaded weeks; requesting an unloaded older week refreshes from YouTube up to three times before showing an error. Each compact 12 px card presents a thumbnail, clean title, publication date, hashtag chips, status, statement count, and version. Its overflow menu holds supported actions, while an expandable Knowledge area exposes the supported Transcript tab with persisted statements, provenance, and source-moment links. | Add a durable provider-backed archive cursor for channels beyond YouTube's recent public feed, sorting choices, richer failure details, processing history, prior-version browsing, personal notes, generated summaries, and individual statement/timestamp editing. |
 | Support discovered, processing, processed, skipped, needs-review, and failed states | **Implemented** | The inventory renders the persisted workflow state and exposes allowed review/skip/process/retry actions. It does not let the user manually mark an item processed. | Add a queued state and background progress/notification experience. |
 | Retry failed processing | **Implemented** | Failed items can be retried through the transcript-processing flow. | Add retry explanation, attempt history, and policy/limit feedback. |
 | Notify users when new content or review work arrives | **Not implemented** | No notification center or background update exists. | Add scheduled-sync results, review counts, completion/failure notices, and user preferences. |
@@ -52,9 +52,9 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | --- | --- | --- | --- |
 | Obtain and process transcripts where permitted | **Partial** | A user can paste transcript text for a video and submit it to the server. | Add a permitted automatic transcript option, availability state, provider choice, and clear fallback behavior. |
 | Segment long-form content | **Partial** | Blank-line-separated paragraphs are submitted as individual segments/source statements. | Add automatic topic segmentation, editing/reordering, merge/split controls, and contextual overlap. |
-| Retain source timestamps | **Partial** | The API model stores optional start/end timestamps and the saved transcript view renders them as readable ranges. The current paste interface still sends `null` timestamps. | Add timestamp input/import and links back to the original source moment. |
-| Show safe processing results | **Implemented** | The client reports processed versus unchanged content, current version, source-statement count, and every stored statement for the current version. Newly processed text appears immediately. | Add richer provenance, attempt history, prior-version selection, and changed-version comparison. |
-| Allow transcript correction and new versions | **Implemented** | A processed item can be opened again with an updated transcript; unchanged input reuses the version and changed input creates a new version. | Preload the existing transcript, present diffs, and allow version selection/rollback. |
+| Retain source timestamps | **Partial** | The API model stores optional start/end timestamps. The Knowledge transcript renders readable ranges and links a timestamp back to that moment in the YouTube source. The current paste interface still sends `null` timestamps. | Add timestamp input/import so new manually entered statements can receive source moments. |
+| Show safe processing results | **Implemented** | The client reports processed versus unchanged content, current version, source-statement count, and every stored statement for the current version. Newly processed text appears immediately and success is announced through a temporary toast instead of a permanent banner. | Add richer provenance, attempt history, prior-version selection, and changed-version comparison. |
+| Allow transcript correction and new versions | **Implemented** | A processed item can be opened with its existing transcript preloaded; unchanged input reuses the version and changed input creates a new version. | Present diffs and allow version selection/rollback. |
 | Allow users to edit segments and extracted claims | **Not implemented** | Transcript text can be resubmitted, but there is no segment or claim editor after processing. | Add reviewed segment/claim editing with audit history and immutable source text. |
 
 ### Ask and knowledge navigation
@@ -96,7 +96,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Route | Current state |
 | --- | --- |
 | `/ask` | Working persistent multi-turn interface. `?chat=<conversationId>` restores a saved session; answers are still mock and no real retrieval occurs. |
-| `/sources` | Working local-server integration for analysis, channel sync, latest-content refresh, source inventory, accordion transcript viewing, transcript replacement/deletion, video status, processing, and confirmed source deletion. |
+| `/sources` | Working local-server integration for analysis, channel sync, latest-content refresh, newest-first weekly inventory pages, compact knowledge-first video cards, expandable Transcript knowledge, transcript replacement/deletion, video status, processing, and confirmed source deletion. |
 | `/knowledge` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/review` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/compare` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
@@ -112,13 +112,15 @@ The root route redirects to `/ask`, and unknown routes also redirect to `/ask`.
 3. Review the conservative creator/source identity draft.
 4. For a supported channel, start sync and display discovered/reused content.
 5. Load persisted sources and select one to view its video inventory.
-6. Choose Fetch latest to discover only newer YouTube videos, refresh the inventory, and receive an added/already-current message without duplicates.
-7. Move a discovered/failed/skipped item to `needs-review`, or skip an eligible item.
-8. Paste transcript text; blank lines create separate source statements.
-9. Process, retry, or choose Modify to preload and replace an existing transcript.
-10. Use the closed “View transcript / summary” accordion to open or close the current verbatim statements, with readable timestamp ranges and a contained long-text view.
-11. Choose Delete beside the accordion, review the permanent-deletion warning, and either cancel or remove all transcript versions and processing history while retaining the source and video.
-12. Choose Remove source, review the separate permanent-deletion warning, and either cancel without changes or confirm removal of the source and all associated data.
+6. Read the first/latest loaded video dates and browse Monday-to-Sunday pages, with the newest week first and videos ordered newest first inside each week.
+7. Choose Older week or Newer week. Loaded weeks switch immediately; an unloaded older week triggers up to three YouTube refresh attempts and then shows a clear error if no older week is returned.
+8. Choose Fetch latest to discover only newer YouTube videos, refresh the inventory, return to the newest week, and receive an added/already-current message without duplicates.
+9. Use a compact video card's overflow menu to move an eligible item to review, skip it, add/retry/modify its transcript, or delete saved transcript data.
+10. Paste transcript text; blank lines create separate source statements.
+11. Process, retry, or choose Modify to preload and replace an existing transcript. A temporary toast confirms processing without leaving a permanent success message.
+12. Expand Knowledge and use the supported Transcript tab to inspect source statements separately from future personal notes, with provenance, version, and timestamp links to the original source moment.
+13. Choose Delete from the overflow menu, review the permanent-deletion warning, and either cancel or remove all transcript versions and processing history while retaining the source and video.
+14. Choose Remove source, review the separate permanent-deletion warning, and either cancel without changes or confirm removal of the source and all associated data.
 
 ### Working Ask presentation
 
@@ -140,9 +142,10 @@ Ask questions, modes, answers, and ordering are stored by the local server. Answ
 - Only Ask and Sources are routable. Knowledge, Review, Compare, Life, and Settings remain navigation placeholders.
 - Playlist and video URLs can be analyzed, but the end-to-end save/process flow is currently built around channel sync.
 - Backfill selection is visual only; it does not yet change the server ingestion strategy.
+- Weekly paging is calculated from the videos currently stored for a source. At the end of the loaded weeks, the client performs up to three live source refreshes; YouTube's public channel feed normally exposes only recent entries, so it may not provide an older archive week and the client then shows an error.
 - Creator profile edits are not persisted.
 - Transcript entry is manual, splits only on blank lines, and does not capture timestamps.
-- Current saved statements and basic context can be browsed, replaced as a complete transcript, or deleted. Individual statement/timestamp editing, rich provenance, attempt history, prior-version browsing, and version comparisons are not yet available.
+- Current saved statements and basic context can be browsed, replaced as a complete transcript, or deleted. Individual statement/timestamp editing, rich provenance, attempt history, prior-version browsing, and version comparisons are not yet available. Summary, My Notes, and Version History controls are hidden because no supported data or API exists for them yet.
 - There is no claim/concept editor, ambiguity review, novelty/contradiction display, or confidence/verification workflow.
 - There is no user knowledge state, personal note, goal, action, conclusion, external research, or Life interface.
 - There are no background progress updates, notification center, offline/reconnect treatment, or scheduled monitoring controls.
@@ -153,26 +156,27 @@ Ask questions, modes, answers, and ordering are stored by the local server. Answ
 ## Future enhancement order
 
 1. **Complete source setup:** persist creator edits, make backfill choices functional, and add playlist/direct-video flows with clear unsupported/error states.
-2. **Improve transcript work:** offer permitted automatic retrieval plus manual fallback, timestamp/language input, individual segment editing, and source links.
-3. **Expose processing evidence:** add views for statements, normalized claims, provenance, attempts, versions, failures, and changed-content diffs.
-4. **Build the Review page:** combine source identity, failed content, uncertain claims, conflicts, and missing evidence into one actionable queue.
-5. **Connect Ask to retrieval:** replace mock answers with real local queries, citations, timestamps, and retrieval explanations while retaining the implemented persistent session flow.
-6. **Build Knowledge and Compare:** browse concepts/claims/themes, inspect relationships, compare sources, and show position changes over time.
-7. **Add user judgment:** implement the full knowledge-state vocabulary and separate notes, goals, actions, and conclusions.
-8. **Build monitoring feedback:** background sync/processing progress, completion/failure notices, new-content summaries, and review counts.
-9. **Add Life carefully:** descriptive timelines and trends with provenance labels, user correction, and no universal score.
-10. **Complete Settings and ownership:** environment/server configuration, export, full-account deletion, backup/restore, optional Drive connection, secret handling, provider choice, and cost controls. Keep source deletion synchronized with future source-owned entities.
-11. **Harden the experience:** accessibility, keyboard navigation, responsive QA, offline/reconnect behavior, pagination, filtering, and large-library performance.
+2. **Complete YouTube archive paging:** add a durable, policy-compliant continuation or provider contract so Older week can retrieve channel history beyond the recent public feed while retaining stable-ID deduplication.
+3. **Improve transcript work:** offer permitted automatic retrieval plus manual fallback, timestamp/language input, individual segment editing, generated summaries, and personal notes stored separately from source statements.
+4. **Expose processing evidence:** add views for statements, normalized claims, provenance, attempts, versions, failures, changed-content diffs, and supported version-history actions.
+5. **Build the Review page:** combine source identity, failed content, uncertain claims, conflicts, and missing evidence into one actionable queue.
+6. **Connect Ask to retrieval:** replace mock answers with real local queries, citations, timestamps, and retrieval explanations while retaining the implemented persistent session flow.
+7. **Build Knowledge and Compare:** browse concepts/claims/themes, inspect relationships, compare sources, and show position changes over time.
+8. **Add user judgment:** implement the full knowledge-state vocabulary and separate notes, goals, actions, and conclusions.
+9. **Build monitoring feedback:** background sync/processing progress, completion/failure notices, new-content summaries, and review counts.
+10. **Add Life carefully:** descriptive timelines and trends with provenance labels, user correction, and no universal score.
+11. **Complete Settings and ownership:** environment/server configuration, export, full-account deletion, backup/restore, optional Drive connection, secret handling, provider choice, and cost controls. Keep source deletion synchronized with future source-owned entities.
+12. **Harden the experience:** accessibility, keyboard navigation, responsive QA, offline/reconnect behavior, filtering, and large-library performance.
 
 ## Verification evidence
 
 At this reconciliation point:
 
-- The client test suite passes: **44 tests**.
+- The client test suite passes: **47 tests**.
 - The Angular production build passes.
-- The production bundle is approximately **414.16 kB raw** and **103.57 kB estimated transfer** at the latest verification.
+- The production bundle is approximately **423.55 kB raw** and **105.87 kB estimated transfer** at the latest verification.
 - The Sources page stylesheet is below the configured 12 kB warning threshold; the maximum style error limit remains 16 kB.
-- Tests cover conversation API calls including deletion, Recent loading, active-session restoration, turn saving, Recent reordering, deletion state cleanup, and rejection of stale load/save responses after New chat, plus Sources interactions including inventory loading, closed/open transcript accordion behavior, timestamp formatting, latest-content refresh, failure preservation, status actions, processing, prefilled transcript modification, immediate statement display, per-video transcript deletion cleanup, source deletion confirmation/cancellation, and successful removal.
+- Tests cover conversation API calls including deletion, Recent loading, active-session restoration, turn saving, Recent reordering, deletion state cleanup, and rejection of stale load/save responses after New chat, plus Sources interactions including inventory loading, compact knowledge-card behavior, timestamp links, latest-content refresh, newest-first weekly grouping, first/latest date boundaries, lazy older-week success after retry, three-attempt failure, status actions, processing toasts, prefilled transcript modification, immediate statement display, per-video transcript deletion cleanup, source deletion confirmation/cancellation, and successful removal.
 
 ## Change history
 
@@ -185,6 +189,7 @@ At this reconciliation point:
 | 24 November 2026 | Added a Delete control to every Recent session with a confirmation dialog. Confirming removes the complete saved conversation; deleting the open session returns to a blank Ask page. New chat now hard-resets the Ask URL and ignores late load/save responses so the prior context cannot reappear. | Conversation deletion and reliable New chat isolation are implemented. Rename, search, pagination, retention controls, and grounded answer retrieval remain future work. | All 42 client tests, all 36 server tests, and the Angular production build passed. |
 | 24 November 2026 | Added saved transcript display to the selected source inventory. Each processed video now shows its current version's verbatim statements, optional timestamp ranges, and context in a contained panel; newly processed text appears immediately. | Current saved transcripts are browsable. Prior versions, attempt history, richer provenance, and statement editing remain future work. | All 42 client tests, all 36 server tests, and the Angular production build passed. |
 | 24 November 2026 | Changed saved transcripts to a closed accordion bar with View transcript / summary, Modify, and Delete controls. Modify preloads the current text; Delete requires confirmation, clears every saved version and processing record, and leaves the video ready for a replacement transcript. | Transcript viewing, whole-transcript replacement, and per-video deletion are implemented. Individual segment/timestamp editing and version-history browsing remain future work. | All 44 client tests and all 36 server tests passed; the Angular production build passed within the configured stylesheet budget. |
+| 24 November 2026 | Redesigned video inventory as compact knowledge cards with thumbnails, separated hashtag chips, one metadata row, supported actions in an overflow menu, temporary processing toasts, and an expandable Transcript knowledge tab. Added first/latest dates and newest-first weekly pages; Older week loads a missing page through up to three live YouTube refreshes before displaying an error. | Source statements remain distinct from future personal notes. Summary, My Notes, and Version History stay hidden until backed by real APIs. YouTube's recent public feed may not return archive weeks, so durable continuation paging remains future work. | All 47 client tests passed, including weekly ordering and retry cases; the Angular production build passed at 423.55 kB raw with the Sources stylesheet below its 12 kB warning budget. |
 
 ## Source documents reconciled
 

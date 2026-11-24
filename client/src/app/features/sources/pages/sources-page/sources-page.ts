@@ -1,4 +1,12 @@
-import { ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  inject,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { map, switchMap, timeout } from 'rxjs';
@@ -8,6 +16,7 @@ import { LensCard } from '../../../../shared/components/lens-card/lens-card';
 import { LensBadge } from '../../../../shared/components/lens-badge/lens-badge';
 import { LensFormField } from '../../../../shared/components/lens-form-field/lens-form-field';
 import { LensButton } from '../../../../shared/components/lens-button/lens-button';
+import { LensToast } from '../../../../shared/components/lens-toast/lens-toast';
 import { LensApiService } from '../../../../core/services/lens-api.service';
 
 import type {
@@ -28,6 +37,13 @@ interface Source {
   contentCount: number;
   conceptCount: number;
   status: 'verified' | 'review';
+}
+
+interface VideoWeek {
+  key: string;
+  weekStart: string | null;
+  weekEnd: string | null;
+  videos: SourceVideo[];
 }
 
 interface CreatorProfile {
@@ -53,11 +69,20 @@ interface CreatorProfile {
 
 @Component({
   selector: 'app-sources-page',
-  imports: [FormsModule, LensModal, LensButton, LensFormField, LensBadge, LensCard, DatePipe],
+  imports: [
+    FormsModule,
+    LensModal,
+    LensButton,
+    LensToast,
+    LensFormField,
+    LensBadge,
+    LensCard,
+    DatePipe,
+  ],
   templateUrl: './sources-page.html',
   styleUrl: './sources-page.css',
 })
-export class SourcesPage implements OnInit {
+export class SourcesPage implements OnInit, OnDestroy {
   @ViewChild('sourceCarousel')
   private sourceCarousel?: ElementRef<HTMLElement>;
 
@@ -78,7 +103,8 @@ export class SourcesPage implements OnInit {
   processingVideoId: string | null = null;
   processingTranscript = '';
   processingError = '';
-  readonly processingSummaries = new Map<string, string>();
+  processingToast: { videoId: string; message: string } | null = null;
+  private processingToastTimer: ReturnType<typeof setTimeout> | null = null;
   readonly expandedTranscriptVideoIds = new Set<string>();
   videoPendingTranscriptDeletion: SourceVideo | null = null;
   deletingTranscript = false;
@@ -104,9 +130,20 @@ export class SourcesPage implements OnInit {
   sourceVideos: SourceVideo[] = [];
   sourceVideosLoading = false;
   sourceVideosError = '';
+  currentVideoWeekIndex = 0;
+  loadingOlderVideoWeek = false;
+  videoWeekLoadAttempt = 0;
+  videoWeekError = '';
+  olderVideoWeeksExhausted = false;
 
   ngOnInit(): void {
     this.loadSources();
+  }
+
+  ngOnDestroy(): void {
+    if (this.processingToastTimer) {
+      clearTimeout(this.processingToastTimer);
+    }
   }
 
   scrollSources(direction: 'previous' | 'next'): void {
@@ -151,7 +188,9 @@ export class SourcesPage implements OnInit {
 
   openVideoProcessing(video: SourceVideo): void {
     this.processingVideoId = video.videoId;
-    this.processingTranscript = video.sourceStatements.map((statement) => statement.text).join('\n\n');
+    this.processingTranscript = video.sourceStatements
+      .map((statement) => statement.text)
+      .join('\n\n');
     this.processingError = '';
   }
 
@@ -167,7 +206,9 @@ export class SourcesPage implements OnInit {
     const transcript = this.processingTranscript.trim();
 
     if (!source || !transcript || this.updatingVideoIds.has(video.videoId)) {
-      this.processingError = transcript ? '' : 'Paste the available transcript or source text first.';
+      this.processingError = transcript
+        ? ''
+        : 'Paste the available transcript or source text first.';
       return;
     }
 
@@ -182,11 +223,11 @@ export class SourcesPage implements OnInit {
         video.claimCount = result.claimCount;
         video.sourceStatements = this.buildSourceStatements(transcript);
         video.processedAt = new Date().toISOString();
-        this.processingSummaries.set(
+        this.showProcessingToast(
           video.videoId,
           result.status === 'unchanged'
             ? 'No content change found. The existing version was kept.'
-            : `${result.claimCount} source ${result.claimCount === 1 ? 'statement' : 'statements'} saved as version ${result.versionId}.`,
+            : `Transcript saved · ${result.claimCount} source ${result.claimCount === 1 ? 'statement' : 'statements'} · Version ${result.versionId}`,
         );
         this.updatingVideoIds.delete(video.videoId);
         this.processingVideoId = null;
@@ -227,6 +268,96 @@ export class SourcesPage implements OnInit {
 
     const language = statement.context.slice(languagePrefix.length).trim();
     return language && language !== 'und' ? `Language: ${language.toUpperCase()}` : null;
+  }
+
+  getVideoThumbnail(videoId: string): string {
+    return `https://i.ytimg.com/vi/${encodeURIComponent(videoId)}/mqdefault.jpg`;
+  }
+
+  hideBrokenThumbnail(event: Event): void {
+    const image = event.target;
+
+    if (image instanceof HTMLImageElement) {
+      image.hidden = true;
+    }
+  }
+
+  getVideoTitle(title: string | null): string {
+    if (!title) {
+      return 'Untitled video';
+    }
+
+    const withoutHashtags = title
+      .replace(/(^|\s)#[\p{L}\p{N}_-]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return withoutHashtags || title;
+  }
+
+  getVideoHashtags(title: string | null): string[] {
+    return title?.match(/(^|\s)#[\p{L}\p{N}_-]+/gu)?.map((tag) => tag.trim()) ?? [];
+  }
+
+  getVideoStatusLabel(status: SourceVideo['status']): string {
+    switch (status) {
+      case 'needs-review':
+        return 'Needs review';
+      case 'processed':
+        return 'Processed';
+      case 'failed':
+        return 'Failed';
+      case 'processing':
+        return 'Processing';
+      case 'skipped':
+        return 'Skipped';
+      default:
+        return 'Discovered';
+    }
+  }
+
+  getVideoStatusTone(
+    status: SourceVideo['status'],
+  ): 'neutral' | 'info' | 'success' | 'warning' | 'danger' {
+    switch (status) {
+      case 'needs-review':
+        return 'warning';
+      case 'processed':
+        return 'success';
+      case 'failed':
+        return 'danger';
+      case 'processing':
+        return 'info';
+      default:
+        return 'neutral';
+    }
+  }
+
+  getStatementSourceUrl(video: SourceVideo, statement: SourceStatement): string {
+    if (statement.startSeconds === null) {
+      return video.url;
+    }
+
+    const separator = video.url.includes('?') ? '&' : '?';
+    return `${video.url}${separator}t=${Math.floor(statement.startSeconds)}s`;
+  }
+
+  dismissProcessingToast(): void {
+    if (this.processingToastTimer) {
+      clearTimeout(this.processingToastTimer);
+      this.processingToastTimer = null;
+    }
+
+    this.processingToast = null;
+  }
+
+  private showProcessingToast(videoId: string, message: string): void {
+    this.dismissProcessingToast();
+    this.processingToast = { videoId, message };
+    this.processingToastTimer = setTimeout(() => {
+      this.processingToast = null;
+      this.processingToastTimer = null;
+      this.changeDetector.detectChanges();
+    }, 4_000);
   }
 
   toggleTranscript(videoId: string): void {
@@ -275,7 +406,9 @@ export class SourcesPage implements OnInit {
         video.processedAt = null;
         video.claimCount = 0;
         video.sourceStatements = [];
-        this.processingSummaries.delete(video.videoId);
+        if (this.processingToast?.videoId === video.videoId) {
+          this.dismissProcessingToast();
+        }
         this.expandedTranscriptVideoIds.delete(video.videoId);
 
         if (this.processingVideoId === video.videoId) {
@@ -359,6 +492,8 @@ export class SourcesPage implements OnInit {
     this.sourceVideosError = '';
     this.fetchLatestMessage = '';
     this.fetchLatestError = '';
+    this.resetVideoWeekPagination();
+    this.dismissProcessingToast();
     this.expandedTranscriptVideoIds.clear();
     this.cancelVideoProcessing();
     this.cancelDeleteTranscript();
@@ -392,6 +527,173 @@ export class SourcesPage implements OnInit {
       });
   }
 
+  get videoWeeks(): VideoWeek[] {
+    const groups = new Map<string, VideoWeek>();
+
+    for (const video of this.sourceVideos) {
+      const published = video.publishedAt ? new Date(video.publishedAt) : null;
+      const validDate = published && !Number.isNaN(published.getTime()) ? published : null;
+      const weekStart = validDate ? this.startOfUtcWeek(validDate) : null;
+      const key = weekStart?.toISOString().slice(0, 10) ?? 'undated';
+      let group = groups.get(key);
+
+      if (!group) {
+        const weekEnd = weekStart ? new Date(weekStart) : null;
+        weekEnd?.setUTCDate(weekEnd.getUTCDate() + 6);
+        group = {
+          key,
+          weekStart: weekStart?.toISOString() ?? null,
+          weekEnd: weekEnd?.toISOString() ?? null,
+          videos: [],
+        };
+        groups.set(key, group);
+      }
+
+      group.videos.push(video);
+    }
+
+    return [...groups.values()]
+      .map((week) => ({
+        ...week,
+        videos: [...week.videos].sort(
+          (left, right) => this.videoTimestamp(right) - this.videoTimestamp(left),
+        ),
+      }))
+      .sort((left, right) => {
+        if (left.weekStart === null) return 1;
+        if (right.weekStart === null) return -1;
+        return right.weekStart.localeCompare(left.weekStart);
+      });
+  }
+
+  get currentVideoWeek(): VideoWeek | null {
+    return this.videoWeeks[this.currentVideoWeekIndex] ?? null;
+  }
+
+  get firstVideoDate(): string | null {
+    return this.videoDateBoundary('first');
+  }
+
+  get latestVideoDate(): string | null {
+    return this.videoDateBoundary('latest');
+  }
+
+  showNewerVideoWeek(): void {
+    if (this.currentVideoWeekIndex > 0 && !this.loadingOlderVideoWeek) {
+      this.currentVideoWeekIndex -= 1;
+      this.videoWeekError = '';
+    }
+  }
+
+  showOlderVideoWeek(): void {
+    if (this.loadingOlderVideoWeek || this.olderVideoWeeksExhausted) {
+      return;
+    }
+
+    if (this.currentVideoWeekIndex < this.videoWeeks.length - 1) {
+      this.currentVideoWeekIndex += 1;
+      this.videoWeekError = '';
+      return;
+    }
+
+    const source = this.selectedSource;
+    const anchorWeek = this.currentVideoWeek?.key;
+
+    if (!source || !anchorWeek) {
+      return;
+    }
+
+    this.loadingOlderVideoWeek = true;
+    this.videoWeekLoadAttempt = 1;
+    this.videoWeekError = '';
+    this.loadMissingOlderVideoWeek(source.sourceKey, anchorWeek, 1);
+  }
+
+  private loadMissingOlderVideoWeek(sourceKey: string, anchorWeek: string, attempt: number): void {
+    this.videoWeekLoadAttempt = attempt;
+    this.api
+      .syncSource(sourceKey)
+      .pipe(switchMap(() => this.api.listSourceVideos(sourceKey)))
+      .subscribe({
+        next: (inventory) => {
+          if (this.selectedSource?.sourceKey !== sourceKey) {
+            return;
+          }
+
+          this.sourceVideos = inventory.videos;
+          this.selectedSource.contentCount = inventory.videos.length;
+          const anchorIndex = this.videoWeeks.findIndex((week) => week.key === anchorWeek);
+
+          if (anchorIndex >= 0 && anchorIndex < this.videoWeeks.length - 1) {
+            this.currentVideoWeekIndex = anchorIndex + 1;
+            this.loadingOlderVideoWeek = false;
+            this.videoWeekLoadAttempt = 0;
+            this.videoWeekError = '';
+            this.changeDetector.detectChanges();
+            return;
+          }
+
+          if (attempt < 3) {
+            this.loadMissingOlderVideoWeek(sourceKey, anchorWeek, attempt + 1);
+            return;
+          }
+
+          this.finishOlderWeekFailure('YouTube did not provide an older week after 3 attempts.');
+        },
+        error: () => {
+          if (this.selectedSource?.sourceKey !== sourceKey) {
+            return;
+          }
+
+          if (attempt < 3) {
+            this.loadMissingOlderVideoWeek(sourceKey, anchorWeek, attempt + 1);
+            return;
+          }
+
+          this.finishOlderWeekFailure(
+            'LENS could not load the next week from YouTube after 3 attempts.',
+          );
+        },
+      });
+  }
+
+  private finishOlderWeekFailure(message: string): void {
+    this.loadingOlderVideoWeek = false;
+    this.videoWeekLoadAttempt = 0;
+    this.olderVideoWeeksExhausted = true;
+    this.videoWeekError = message;
+    this.changeDetector.detectChanges();
+  }
+
+  private resetVideoWeekPagination(): void {
+    this.currentVideoWeekIndex = 0;
+    this.loadingOlderVideoWeek = false;
+    this.videoWeekLoadAttempt = 0;
+    this.videoWeekError = '';
+    this.olderVideoWeeksExhausted = false;
+  }
+
+  private startOfUtcWeek(date: Date): Date {
+    const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const daysSinceMonday = (start.getUTCDay() + 6) % 7;
+    start.setUTCDate(start.getUTCDate() - daysSinceMonday);
+    return start;
+  }
+
+  private videoTimestamp(video: SourceVideo): number {
+    const timestamp = video.publishedAt ? new Date(video.publishedAt).getTime() : Number.NaN;
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  }
+
+  private videoDateBoundary(boundary: 'first' | 'latest'): string | null {
+    const dated = this.sourceVideos
+      .filter((video) => video.publishedAt && this.videoTimestamp(video) > 0)
+      .sort((left, right) => this.videoTimestamp(left) - this.videoTimestamp(right));
+    return boundary === 'first'
+      ? (dated[0]?.publishedAt ?? null)
+      : (dated.at(-1)?.publishedAt ?? null);
+  }
+
   fetchLatestContent(source: Source): void {
     if (this.fetchingLatestSourceKey) {
       return;
@@ -405,9 +707,9 @@ export class SourcesPage implements OnInit {
       .syncSource(source.sourceKey)
       .pipe(
         switchMap((sync) =>
-          this.api.listSourceVideos(source.sourceKey).pipe(
-            map((inventory) => ({ sync, inventory })),
-          ),
+          this.api
+            .listSourceVideos(source.sourceKey)
+            .pipe(map((inventory) => ({ sync, inventory }))),
         ),
       )
       .subscribe({
@@ -416,6 +718,7 @@ export class SourcesPage implements OnInit {
 
           if (this.selectedSource?.sourceKey === source.sourceKey) {
             this.sourceVideos = inventory.videos;
+            this.resetVideoWeekPagination();
 
             const newCount = sync.newVideos.length;
             this.fetchLatestMessage = newCount
@@ -474,7 +777,7 @@ export class SourcesPage implements OnInit {
           this.sourceVideosError = '';
           this.sourceVideosLoading = false;
           this.cancelVideoProcessing();
-          this.processingSummaries.clear();
+          this.dismissProcessingToast();
           this.expandedTranscriptVideoIds.clear();
           this.cancelDeleteTranscript();
         }
@@ -718,9 +1021,9 @@ export class SourcesPage implements OnInit {
   private buildSourceStatements(transcript: string): SourceStatement[] {
     return transcript
       .split(/\n\s*\n/)
-      .map(text => text.trim())
+      .map((text) => text.trim())
       .filter(Boolean)
-      .map(text => ({
+      .map((text) => ({
         text,
         context: 'Transcript language: und',
         startSeconds: null,

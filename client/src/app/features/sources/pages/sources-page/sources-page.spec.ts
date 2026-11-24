@@ -3,10 +3,7 @@ import { of, throwError } from 'rxjs';
 import { describe, beforeEach, expect, it, vi } from 'vitest';
 
 import { SourcesPage } from './sources-page';
-import {
-  LensApiService,
-  type SourceVideo,
-} from '../../../../core/services/lens-api.service';
+import { LensApiService, type SourceVideo } from '../../../../core/services/lens-api.service';
 
 describe('SourcesPage', () => {
   let fixture: ComponentFixture<SourcesPage>;
@@ -358,15 +355,17 @@ describe('SourcesPage', () => {
         videos: [
           {
             videoId: 'VIDEO-1',
-            title: 'Owned video',
+            title: 'Owned video #leadership #focus',
             url: 'https://youtube.com/watch?v=VIDEO-1',
             publishedAt: '2026-08-30T00:00:00Z',
-            sourceStatements: [{
-              text: 'Saved transcript statement.',
-              context: 'Transcript language: en',
-              startSeconds: 12,
-              endSeconds: 18,
-            }],
+            sourceStatements: [
+              {
+                text: 'Saved transcript statement.',
+                context: 'Transcript language: en',
+                startSeconds: 12,
+                endSeconds: 18,
+              },
+            ],
           },
         ],
       }),
@@ -381,9 +380,19 @@ describe('SourcesPage', () => {
     expect(component.sourceVideosLoading).toBe(false);
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).not.toContain('Saved transcript statement.');
-    expect(fixture.nativeElement.textContent).toContain('View transcript / summary');
+    expect(fixture.nativeElement.querySelector('.source-video-title').textContent.trim()).toBe(
+      'Owned video',
+    );
+    expect(fixture.nativeElement.querySelectorAll('.video-categories span')).toHaveLength(2);
+    expect(fixture.nativeElement.querySelector('.video-thumbnail img').src).toContain(
+      '/vi/VIDEO-1/mqdefault.jpg',
+    );
+    expect(fixture.nativeElement.textContent).toContain('Knowledge');
+    expect(fixture.nativeElement.textContent).not.toContain('My Notes');
+    expect(fixture.nativeElement.textContent).not.toContain('Version History');
     component.toggleTranscript('VIDEO-1');
     fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Transcript');
     expect(fixture.nativeElement.textContent).toContain('Saved transcript statement.');
     expect(fixture.nativeElement.textContent).toContain('0:12–0:18');
     component.toggleTranscript('VIDEO-1');
@@ -401,27 +410,44 @@ describe('SourcesPage', () => {
       status: 'verified' as const,
     };
     const latestVideo = {
-      videoId: 'LATEST', title: 'Latest video', url: 'https://youtube.com/watch?v=LATEST',
-      publishedAt: '2026-11-24T00:00:00.000Z', discoveredAt: '2026-11-24T01:00:00.000Z',
-      status: 'discovered' as const, currentVersionId: null, processedAt: null, claimCount: 0,
+      videoId: 'LATEST',
+      title: 'Latest video',
+      url: 'https://youtube.com/watch?v=LATEST',
+      publishedAt: '2026-11-24T00:00:00.000Z',
+      discoveredAt: '2026-11-24T01:00:00.000Z',
+      status: 'discovered' as const,
+      currentVersionId: null,
+      processedAt: null,
+      claimCount: 0,
       sourceStatements: [],
     };
     const storedVideo = {
-      videoId: 'STORED', title: 'Stored video', url: 'https://youtube.com/watch?v=STORED',
-      publishedAt: '2026-11-20T00:00:00.000Z', discoveredAt: '2026-11-20T01:00:00.000Z',
-      status: 'processed' as const, currentVersionId: 1, processedAt: '2026-11-20T02:00:00.000Z',
+      videoId: 'STORED',
+      title: 'Stored video',
+      url: 'https://youtube.com/watch?v=STORED',
+      publishedAt: '2026-11-20T00:00:00.000Z',
+      discoveredAt: '2026-11-20T01:00:00.000Z',
+      status: 'processed' as const,
+      currentVersionId: 1,
+      processedAt: '2026-11-20T02:00:00.000Z',
       claimCount: 1,
-      sourceStatements: [{
-        text: 'Stored statement.', context: 'Transcript language: en',
-        startSeconds: null, endSeconds: null,
-      }],
+      sourceStatements: [
+        {
+          text: 'Stored statement.',
+          context: 'Transcript language: en',
+          startSeconds: null,
+          endSeconds: null,
+        },
+      ],
     };
     component.selectedSource = source;
     component.sources = [source];
-    apiMock.syncSource.mockReturnValue(of({
-      status: 'completed',
-      newVideos: [latestVideo],
-    }));
+    apiMock.syncSource.mockReturnValue(
+      of({
+        status: 'completed',
+        newVideos: [latestVideo],
+      }),
+    );
     apiMock.listSourceVideos.mockReturnValue(of({ videos: [latestVideo, storedVideo] }));
 
     component.fetchLatestContent(source);
@@ -437,23 +463,40 @@ describe('SourcesPage', () => {
   it('keeps existing content when fetching latest fails', () => {
     const source = {
       sourceKey: 'youtube:channel-id:uc-test',
-      name: 'test', perspective: 'YouTube source', contentCount: 1, conceptCount: 0,
+      name: 'test',
+      perspective: 'YouTube source',
+      contentCount: 1,
+      conceptCount: 0,
       status: 'verified' as const,
     };
-    const existingVideos = [{
-      videoId: 'STORED', title: 'Stored video', url: 'https://youtube.com/watch?v=STORED',
-      publishedAt: null, discoveredAt: null, status: 'processed' as const,
-      currentVersionId: 1, processedAt: null, claimCount: 1,
-      sourceStatements: [{
-        text: 'Existing statement.', context: 'Transcript language: und',
-        startSeconds: null, endSeconds: null,
-      }],
-    }];
+    const existingVideos = [
+      {
+        videoId: 'STORED',
+        title: 'Stored video',
+        url: 'https://youtube.com/watch?v=STORED',
+        publishedAt: null,
+        discoveredAt: null,
+        status: 'processed' as const,
+        currentVersionId: 1,
+        processedAt: null,
+        claimCount: 1,
+        sourceStatements: [
+          {
+            text: 'Existing statement.',
+            context: 'Transcript language: und',
+            startSeconds: null,
+            endSeconds: null,
+          },
+        ],
+      },
+    ];
     component.selectedSource = source;
     component.sourceVideos = existingVideos;
-    apiMock.syncSource.mockReturnValue(throwError(() => ({
-      error: { message: 'YouTube could not be reached.' },
-    })));
+    apiMock.syncSource.mockReturnValue(
+      throwError(() => ({
+        error: { message: 'YouTube could not be reached.' },
+      })),
+    );
 
     component.fetchLatestContent(source);
 
@@ -461,6 +504,134 @@ describe('SourcesPage', () => {
     expect(component.fetchLatestError).toBe('YouTube could not be reached.');
     expect(component.fetchingLatestSourceKey).toBeNull();
     expect(apiMock.listSourceVideos).not.toHaveBeenCalled();
+  });
+
+  it('groups YouTube videos into newest-first weekly pages with source date bounds', () => {
+    component.sourceVideos = [
+      {
+        videoId: 'LATEST',
+        title: 'Latest',
+        url: 'https://youtube.com/watch?v=LATEST',
+        publishedAt: '2026-11-24T12:00:00.000Z',
+        discoveredAt: null,
+        status: 'discovered',
+        currentVersionId: null,
+        processedAt: null,
+        claimCount: 0,
+        sourceStatements: [],
+      },
+      {
+        videoId: 'MIDDLE',
+        title: 'Middle',
+        url: 'https://youtube.com/watch?v=MIDDLE',
+        publishedAt: '2026-11-18T12:00:00.000Z',
+        discoveredAt: null,
+        status: 'discovered',
+        currentVersionId: null,
+        processedAt: null,
+        claimCount: 0,
+        sourceStatements: [],
+      },
+      {
+        videoId: 'FIRST',
+        title: 'First',
+        url: 'https://youtube.com/watch?v=FIRST',
+        publishedAt: '2026-11-10T12:00:00.000Z',
+        discoveredAt: null,
+        status: 'discovered',
+        currentVersionId: null,
+        processedAt: null,
+        claimCount: 0,
+        sourceStatements: [],
+      },
+    ];
+
+    expect(component.videoWeeks).toHaveLength(3);
+    expect(component.currentVideoWeek?.videos.map((video) => video.videoId)).toEqual(['LATEST']);
+    expect(component.firstVideoDate).toBe('2026-11-10T12:00:00.000Z');
+    expect(component.latestVideoDate).toBe('2026-11-24T12:00:00.000Z');
+
+    component.showOlderVideoWeek();
+
+    expect(component.currentVideoWeek?.videos.map((video) => video.videoId)).toEqual(['MIDDLE']);
+    expect(apiMock.syncSource).not.toHaveBeenCalled();
+  });
+
+  it('loads a missing older week from YouTube and shows it when it arrives', () => {
+    const source = {
+      sourceKey: 'youtube:channel-id:uc-test',
+      name: 'test',
+      perspective: 'YouTube source',
+      contentCount: 1,
+      conceptCount: 0,
+      status: 'verified' as const,
+    };
+    const latest: SourceVideo = {
+      videoId: 'LATEST',
+      title: 'Latest',
+      url: 'https://youtube.com/watch?v=LATEST',
+      publishedAt: '2026-11-24T12:00:00.000Z',
+      discoveredAt: null,
+      status: 'discovered',
+      currentVersionId: null,
+      processedAt: null,
+      claimCount: 0,
+      sourceStatements: [],
+    };
+    const older: SourceVideo = {
+      ...latest,
+      videoId: 'OLDER',
+      title: 'Older',
+      url: 'https://youtube.com/watch?v=OLDER',
+      publishedAt: '2026-11-10T12:00:00.000Z',
+    };
+    component.selectedSource = source;
+    component.sourceVideos = [latest];
+    apiMock.syncSource.mockReturnValue(of({ status: 'completed', newVideos: [] }));
+    apiMock.listSourceVideos
+      .mockReturnValueOnce(of({ videos: [latest] }))
+      .mockReturnValueOnce(of({ videos: [latest, older] }));
+
+    component.showOlderVideoWeek();
+
+    expect(apiMock.syncSource).toHaveBeenCalledTimes(2);
+    expect(component.currentVideoWeek?.videos.map((video) => video.videoId)).toEqual(['OLDER']);
+    expect(component.loadingOlderVideoWeek).toBe(false);
+    expect(component.videoWeekError).toBe('');
+  });
+
+  it('stops loading an older YouTube week after three failed attempts', () => {
+    const source = {
+      sourceKey: 'youtube:channel-id:uc-test',
+      name: 'test',
+      perspective: 'YouTube source',
+      contentCount: 1,
+      conceptCount: 0,
+      status: 'verified' as const,
+    };
+    component.selectedSource = source;
+    component.sourceVideos = [
+      {
+        videoId: 'LATEST',
+        title: 'Latest',
+        url: 'https://youtube.com/watch?v=LATEST',
+        publishedAt: '2026-11-24T12:00:00.000Z',
+        discoveredAt: null,
+        status: 'discovered',
+        currentVersionId: null,
+        processedAt: null,
+        claimCount: 0,
+        sourceStatements: [],
+      },
+    ];
+    apiMock.syncSource.mockReturnValue(throwError(() => new Error('offline')));
+
+    component.showOlderVideoWeek();
+
+    expect(apiMock.syncSource).toHaveBeenCalledTimes(3);
+    expect(component.loadingOlderVideoWeek).toBe(false);
+    expect(component.olderVideoWeeksExhausted).toBe(true);
+    expect(component.videoWeekError).toContain('after 3 attempts');
   });
 
   it('moves discovered source video to review', () => {
@@ -509,24 +680,39 @@ describe('SourcesPage', () => {
 
   it('processes pasted transcript and records the saved result', () => {
     const source = {
-      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
-      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+      name: 'test',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 1,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:test',
     };
     const video: SourceVideo = {
-      videoId: 'VIDEO-123', title: 'Test video',
-      url: 'https://youtube.com/watch?v=VIDEO-123', publishedAt: null,
-      discoveredAt: null, status: 'needs-review' as const,
-      currentVersionId: null, processedAt: null, claimCount: 0,
+      videoId: 'VIDEO-123',
+      title: 'Test video',
+      url: 'https://youtube.com/watch?v=VIDEO-123',
+      publishedAt: null,
+      discoveredAt: null,
+      status: 'needs-review' as const,
+      currentVersionId: null,
+      processedAt: null,
+      claimCount: 0,
       sourceStatements: [],
     };
     component.selectedSource = source;
     component.sourceVideos = [video];
     component.openVideoProcessing(video);
     component.processingTranscript = 'First source statement.\n\nSecond source statement.';
-    apiMock.processSourceVideo.mockReturnValue(of({
-      sourceKey: source.sourceKey, videoId: video.videoId, status: 'processed',
-      attemptId: 1, versionId: 1, claimCount: 2,
-    }));
+    apiMock.processSourceVideo.mockReturnValue(
+      of({
+        sourceKey: source.sourceKey,
+        videoId: video.videoId,
+        status: 'processed',
+        attemptId: 1,
+        versionId: 1,
+        claimCount: 2,
+      }),
+    );
 
     component.processSourceVideo(video);
 
@@ -536,24 +722,36 @@ describe('SourcesPage', () => {
       'First source statement.\n\nSecond source statement.',
     );
     expect(video.status).toBe('processed');
-    expect(video.sourceStatements.map(statement => statement.text)).toEqual([
+    expect(video.sourceStatements.map((statement) => statement.text)).toEqual([
       'First source statement.',
       'Second source statement.',
     ]);
-    expect(component.processingSummaries.get(video.videoId)).toContain('2 source statements');
+    expect(component.processingToast).toEqual({
+      videoId: video.videoId,
+      message: 'Transcript saved · 2 source statements · Version 1',
+    });
     expect(component.processingVideoId).toBeNull();
   });
 
   it('modifies from the saved text and deletes a confirmed transcript', () => {
     const source = {
-      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
-      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+      name: 'test',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 1,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:test',
     };
     const video: SourceVideo = {
-      videoId: 'VIDEO-123', title: 'Test video',
-      url: 'https://youtube.com/watch?v=VIDEO-123', publishedAt: null,
-      discoveredAt: null, status: 'processed', currentVersionId: 4,
-      processedAt: '2026-11-24T00:00:00.000Z', claimCount: 2,
+      videoId: 'VIDEO-123',
+      title: 'Test video',
+      url: 'https://youtube.com/watch?v=VIDEO-123',
+      publishedAt: null,
+      discoveredAt: null,
+      status: 'processed',
+      currentVersionId: 4,
+      processedAt: '2026-11-24T00:00:00.000Z',
+      claimCount: 2,
       sourceStatements: [
         { text: 'First saved statement.', context: '', startSeconds: null, endSeconds: null },
         { text: 'Second saved statement.', context: '', startSeconds: null, endSeconds: null },
@@ -561,7 +759,7 @@ describe('SourcesPage', () => {
     };
     component.selectedSource = source;
     component.sourceVideos = [video];
-    component.processingSummaries.set(video.videoId, 'Saved.');
+    component.processingToast = { videoId: video.videoId, message: 'Saved.' };
     component.expandedTranscriptVideoIds.add(video.videoId);
 
     component.openVideoProcessing(video);
@@ -571,10 +769,15 @@ describe('SourcesPage', () => {
     );
 
     component.openDeleteTranscriptConfirmation(video);
-    apiMock.deleteSourceVideoTranscript.mockReturnValue(of({
-      status: 'deleted', sourceKey: source.sourceKey, videoId: video.videoId,
-      deletedProcessingAttempts: 2, deletedContentVersions: 1,
-    }));
+    apiMock.deleteSourceVideoTranscript.mockReturnValue(
+      of({
+        status: 'deleted',
+        sourceKey: source.sourceKey,
+        videoId: video.videoId,
+        deletedProcessingAttempts: 2,
+        deletedContentVersions: 1,
+      }),
+    );
 
     component.confirmDeleteTranscript();
 
@@ -585,7 +788,7 @@ describe('SourcesPage', () => {
     expect(video.status).toBe('needs-review');
     expect(video.currentVersionId).toBeNull();
     expect(video.sourceStatements).toEqual([]);
-    expect(component.processingSummaries.has(video.videoId)).toBe(false);
+    expect(component.processingToast).toBeNull();
     expect(component.expandedTranscriptVideoIds.has(video.videoId)).toBe(false);
     expect(component.videoPendingTranscriptDeletion).toBeNull();
     expect(component.processingVideoId).toBeNull();
@@ -593,8 +796,12 @@ describe('SourcesPage', () => {
 
   it('opens and cancels source deletion without deleting data', () => {
     const source = {
-      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
-      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+      name: 'test',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 1,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:test',
     };
 
     component.openDeleteSourceConfirmation(source);
@@ -611,30 +818,55 @@ describe('SourcesPage', () => {
 
   it('deletes the confirmed source and clears all selected-source state', () => {
     const source = {
-      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
-      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+      name: 'test',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 1,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:test',
     };
     const retainedSource = {
-      name: 'keep', perspective: 'YouTube source', status: 'verified' as const,
-      contentCount: 0, conceptCount: 0, sourceKey: 'youtube:channel-id:keep',
+      name: 'keep',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 0,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:keep',
     };
     component.sources = [source, retainedSource];
     component.selectedSource = source;
-    component.sourceVideos = [{
-      videoId: 'VIDEO-123', title: 'Test video', url: 'https://youtube.com/watch?v=VIDEO-123',
-      publishedAt: null, discoveredAt: null, status: 'processed', currentVersionId: 1,
-      processedAt: '2026-11-24T00:00:00.000Z', claimCount: 1,
-      sourceStatements: [{
-        text: 'Saved statement.', context: 'Transcript language: und',
-        startSeconds: null, endSeconds: null,
-      }],
-    }];
-    component.processingSummaries.set('VIDEO-123', 'Saved.');
+    component.sourceVideos = [
+      {
+        videoId: 'VIDEO-123',
+        title: 'Test video',
+        url: 'https://youtube.com/watch?v=VIDEO-123',
+        publishedAt: null,
+        discoveredAt: null,
+        status: 'processed',
+        currentVersionId: 1,
+        processedAt: '2026-11-24T00:00:00.000Z',
+        claimCount: 1,
+        sourceStatements: [
+          {
+            text: 'Saved statement.',
+            context: 'Transcript language: und',
+            startSeconds: null,
+            endSeconds: null,
+          },
+        ],
+      },
+    ];
+    component.processingToast = { videoId: 'VIDEO-123', message: 'Saved.' };
     component.openDeleteSourceConfirmation(source);
-    apiMock.deleteSource.mockReturnValue(of({
-      status: 'deleted', sourceKey: source.sourceKey, deletedVideos: 1,
-      deletedProcessingAttempts: 1, deletedContentVersions: 1,
-    }));
+    apiMock.deleteSource.mockReturnValue(
+      of({
+        status: 'deleted',
+        sourceKey: source.sourceKey,
+        deletedVideos: 1,
+        deletedProcessingAttempts: 1,
+        deletedContentVersions: 1,
+      }),
+    );
 
     component.confirmDeleteSource();
 
@@ -642,22 +874,28 @@ describe('SourcesPage', () => {
     expect(component.sources).toEqual([retainedSource]);
     expect(component.selectedSource).toBeNull();
     expect(component.sourceVideos).toEqual([]);
-    expect(component.processingSummaries.size).toBe(0);
+    expect(component.processingToast).toBeNull();
     expect(component.showDeleteSource).toBe(false);
     expect(component.sourcePendingDeletion).toBeNull();
   });
 
   it('keeps the source and confirmation open when deletion fails', () => {
     const source = {
-      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
-      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+      name: 'test',
+      perspective: 'YouTube source',
+      status: 'verified' as const,
+      contentCount: 1,
+      conceptCount: 0,
+      sourceKey: 'youtube:channel-id:test',
     };
     component.sources = [source];
     component.selectedSource = source;
     component.openDeleteSourceConfirmation(source);
-    apiMock.deleteSource.mockReturnValue(throwError(() => ({
-      error: { message: 'Source deletion failed.' },
-    })));
+    apiMock.deleteSource.mockReturnValue(
+      throwError(() => ({
+        error: { message: 'Source deletion failed.' },
+      })),
+    );
 
     component.confirmDeleteSource();
 
