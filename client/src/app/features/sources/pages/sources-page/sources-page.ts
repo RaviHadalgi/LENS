@@ -1,7 +1,7 @@
 import { ChangeDetectorRef, Component, ElementRef, inject, OnInit, ViewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { timeout } from 'rxjs';
+import { map, switchMap, timeout } from 'rxjs';
 
 import { LensModal } from '../../../../shared/components/lens-modal/lens-modal';
 import { LensCard } from '../../../../shared/components/lens-card/lens-card';
@@ -92,6 +92,9 @@ export class SourcesPage implements OnInit {
   sourcePendingDeletion: Source | null = null;
   deletingSource = false;
   deleteSourceError = '';
+  fetchingLatestSourceKey: string | null = null;
+  fetchLatestMessage = '';
+  fetchLatestError = '';
 
   sourceVideos: SourceVideo[] = [];
   sourceVideosLoading = false;
@@ -255,6 +258,8 @@ export class SourcesPage implements OnInit {
     this.sourceVideos = [];
     this.sourceVideosLoading = true;
     this.sourceVideosError = '';
+    this.fetchLatestMessage = '';
+    this.fetchLatestError = '';
 
     this.api
       .listSourceVideos(source.sourceKey)
@@ -272,6 +277,52 @@ export class SourcesPage implements OnInit {
           this.sourceVideosLoading = false;
           this.sourceVideosError = 'Unable to load this source’s content.';
 
+          this.changeDetector.detectChanges();
+        },
+      });
+  }
+
+  fetchLatestContent(source: Source): void {
+    if (this.fetchingLatestSourceKey) {
+      return;
+    }
+
+    this.fetchingLatestSourceKey = source.sourceKey;
+    this.fetchLatestMessage = '';
+    this.fetchLatestError = '';
+
+    this.api
+      .syncSource(source.sourceKey)
+      .pipe(
+        switchMap((sync) =>
+          this.api.listSourceVideos(source.sourceKey).pipe(
+            map((inventory) => ({ sync, inventory })),
+          ),
+        ),
+      )
+      .subscribe({
+        next: ({ sync, inventory }) => {
+          source.contentCount = inventory.videos.length;
+
+          if (this.selectedSource?.sourceKey === source.sourceKey) {
+            this.sourceVideos = inventory.videos;
+
+            const newCount = sync.newVideos.length;
+            this.fetchLatestMessage = newCount
+              ? `${newCount} new ${newCount === 1 ? 'item' : 'items'} added. No duplicates were created.`
+              : 'You already have the latest available content. No duplicates were created.';
+          }
+          this.fetchingLatestSourceKey = null;
+          this.changeDetector.detectChanges();
+        },
+
+        error: (error) => {
+          console.error('Failed to fetch latest source content:', error);
+          this.fetchingLatestSourceKey = null;
+          if (this.selectedSource?.sourceKey === source.sourceKey) {
+            this.fetchLatestError =
+              error?.error?.message ?? 'LENS could not fetch the latest content. Please try again.';
+          }
           this.changeDetector.detectChanges();
         },
       });

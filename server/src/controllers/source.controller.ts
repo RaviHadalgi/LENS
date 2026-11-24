@@ -115,6 +115,46 @@ export async function syncYouTubeChannel(
   res.status(result.status === "failed" ? 422 : 200).json(result);
 }
 
+export async function syncSavedSource(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sourceKey = req.params["sourceKey"];
+
+  if (typeof sourceKey !== "string" || sourceKey.length === 0) {
+    res.status(400).json({
+      status: "invalid",
+      message: "A source key is required.",
+    });
+    return;
+  }
+
+  const source = await youtubeSyncStore.getSourceAccount(sourceKey);
+
+  if (!source) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Source not found.",
+    });
+    return;
+  }
+
+  if (source.platform !== "youtube" || source.sourceType !== "channel") {
+    res.status(422).json({
+      status: "unsupported",
+      message: "Fetching latest content is currently available for YouTube channels.",
+    });
+    return;
+  }
+
+  const syncUrl = source.externalId
+    ? `https://www.youtube.com/channel/${source.externalId}`
+    : source.url;
+  const result = await youtubeSyncService.syncUrl(syncUrl);
+
+  res.status(result.status === "failed" ? 422 : 200).json(result);
+}
+
 export async function listSourceVideos(
   req: Request,
   res: Response,

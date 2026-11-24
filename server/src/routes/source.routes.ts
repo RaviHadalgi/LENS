@@ -6,6 +6,7 @@ import {
   listSources,
   listSourceVideos,
   processSourceVideo,
+  syncSavedSource,
   syncYouTubeChannel,
   updateSourceVideoStatus,
 } from "../controllers/source.controller";
@@ -16,6 +17,7 @@ router.get("/", listSources);
 router.post("/analyze", analyzeSource);
 router.post("/youtube/sync", syncYouTubeChannel);
 router.delete("/:sourceKey", deleteSource);
+router.post("/:sourceKey/sync", syncSavedSource);
 router.get("/:sourceKey/videos", listSourceVideos);
 router.patch("/:sourceKey/videos/:videoId/status", updateSourceVideoStatus);
 router.post("/:sourceKey/videos/:videoId/process", processSourceVideo);

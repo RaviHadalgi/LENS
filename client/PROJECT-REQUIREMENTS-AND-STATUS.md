@@ -39,6 +39,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Review and edit creator identity without fabricated credentials | **Partial** | The profile step uses public metadata, marks identity for review, and avoids inventing biography or credentials. Editable profile controls exist. | Persist edits to the server, store evidence, distinguish self-claims from independent evidence, and support later correction. |
 | Choose full channel, playlists, recent videos, or selected videos | **Partial** | Backfill choices are represented in the add-source interface. | Connect each selection to a distinct server request; current channel sync uses the recent public feed regardless of the visual choice. |
 | Save a source library | **Implemented** | The Sources page loads persisted source accounts from the server and displays source type, state, inventory size, and sync details. | Add search/filter, optional archive, health indicators, and source settings. |
+| Fetch latest content from a saved source without duplicates | **Implemented** | A selected source has a Fetch latest action. It refreshes the saved source through its source key, reloads the inventory, updates the item count, prevents overlapping refreshes, and reports whether new content was added or the source was already current. Server-side stable-ID handling prevents duplicates. | Add scheduled refresh, notification preferences, and refresh support for future playlist/direct-video sources. |
 | Delete a source with explicit confirmation | **Implemented** | A selected source has a Remove source action. A modal explains that associated content and history will be deleted; Cancel/close leaves the source unchanged, while Remove calls the deletion API and clears the deleted source from the interface. Server errors keep the source and modal available for retry. | Extend the warning text if future source-owned data categories are added. |
 | Show per-source content inventory and processing status | **Implemented** | Selecting a source loads videos with published date, workflow status, current version, and source-statement count. | Add pagination, sorting, richer failure details, processing history, and version history. |
 | Support discovered, processing, processed, skipped, needs-review, and failed states | **Implemented** | The inventory renders the persisted workflow state and exposes allowed review/skip/process/retry actions. It does not let the user manually mark an item processed. | Add a queued state and background progress/notification experience. |
@@ -94,7 +95,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Route | Current state |
 | --- | --- |
 | `/ask` | Working interface with mock answer generation; no real retrieval. |
-| `/sources` | Working local-server integration for analysis, channel sync, source inventory, video status, transcript processing, and confirmed source deletion. |
+| `/sources` | Working local-server integration for analysis, channel sync, latest-content refresh, source inventory, video status, transcript processing, and confirmed source deletion. |
 | `/knowledge` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/review` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/compare` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
@@ -110,11 +111,12 @@ The root route redirects to `/ask`, and unknown routes also redirect to `/ask`.
 3. Review the conservative creator/source identity draft.
 4. For a supported channel, start sync and display discovered/reused content.
 5. Load persisted sources and select one to view its video inventory.
-6. Move a discovered/failed/skipped item to `needs-review`, or skip an eligible item.
-7. Paste transcript text; blank lines create separate source statements.
-8. Process, retry, or submit an updated transcript.
-9. Display processed/unchanged outcome, current content version, and statement count.
-10. Choose Remove source, review the permanent-deletion warning, and either cancel without changes or confirm removal of the source and its associated data.
+6. Choose Fetch latest to discover only newer YouTube videos, refresh the inventory, and receive an added/already-current message without duplicates.
+7. Move a discovered/failed/skipped item to `needs-review`, or skip an eligible item.
+8. Paste transcript text; blank lines create separate source statements.
+9. Process, retry, or submit an updated transcript.
+10. Display processed/unchanged outcome, current content version, and statement count.
+11. Choose Remove source, review the permanent-deletion warning, and either cancel without changes or confirm removal of the source and its associated data.
 
 ### Working Ask presentation
 
@@ -161,11 +163,11 @@ All Ask content and statistics are currently mock data and must not be treated a
 
 At this reconciliation point:
 
-- The client test suite passes: **32 tests**.
+- The client test suite passes: **35 tests**.
 - The Angular production build passes.
-- The production bundle is approximately **394.31 kB raw** and **100.08 kB estimated transfer** at the latest verification.
+- The production bundle is approximately **396.95 kB raw** and **100.50 kB estimated transfer** at the latest verification.
 - The Sources page stylesheet is below the configured 12 kB warning threshold; the maximum style error limit remains 16 kB.
-- Tests cover the API service and Sources interactions, including inventory loading, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, successful removal, and failure preservation.
+- Tests cover the API service and Sources interactions, including inventory loading, latest-content refresh, refresh failure preservation, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, successful removal, and failure preservation.
 
 ## Change history
 
@@ -173,6 +175,7 @@ At this reconciliation point:
 | --- | --- | --- | --- |
 | 24 November 2026 | Reconciled all five shared LENS documents with the current Angular client; documented the application shell, mock Ask experience, Sources integration, inventory states, transcript submission, retry, and content-version feedback. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Ask retrieval, remaining product routes, automatic transcripts, persisted creator edits, review, user knowledge, Life, settings, and ownership controls remain future work. | All 28 client tests and the Angular production build passed. Documentation consistency check passed. |
 | 24 November 2026 | Added a Remove source action and confirmation modal. Cancel/close preserves the source; confirmation calls the deletion API, removes the source from the library, and clears selected content state. Failed deletion leaves the source visible and shows a retryable error. | Confirmed source deletion is implemented. Export, backup, full-account deletion, and deletion coverage for future knowledge entities remain future work. | All 32 client tests passed; the production build and documentation consistency checks passed. |
+| 24 November 2026 | Added Fetch latest beside the selected source controls. It refreshes the saved source, reloads its inventory and count, blocks overlapping refreshes, and reports new-content or already-current outcomes. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled refresh and non-channel source support remain future work. | All 35 client tests passed; server deduplication coverage and the Angular production build passed. |
 
 ## Source documents reconciled
 

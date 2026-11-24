@@ -155,6 +155,13 @@ export class LensApiService {
     return this.http.post<YouTubeSyncResponse>(`${this.baseUrl}/sources/youtube/sync`, { url });
   }
 
+  syncSource(sourceKey: string): Observable<YouTubeSyncResponse> {
+    return this.http.post<YouTubeSyncResponse>(
+      `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/sync`,
+      {},
+    );
+  }
+
   listSources(): Observable<ListSourcesResponse> {
     return this.http.get<ListSourcesResponse>(`${this.baseUrl}/sources`);
   }

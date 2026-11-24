@@ -105,15 +105,37 @@
             </p>
           </div>
 
-          <app-lens-button
-            variant="danger"
-            size="small"
-            type="button"
-            (click)="openDeleteSourceConfirmation(selectedSource)"
-          >
-            Remove source
-          </app-lens-button>
+          <div class="source-inventory-actions">
+            <app-lens-button
+              variant="secondary"
+              size="small"
+              type="button"
+              [loading]="fetchingLatestSourceKey === selectedSource.sourceKey"
+              [disabled]="fetchingLatestSourceKey !== null && fetchingLatestSourceKey !== selectedSource.sourceKey"
+              (click)="fetchLatestContent(selectedSource)"
+            >
+              Fetch latest
+            </app-lens-button>
+
+            <app-lens-button
+              variant="danger"
+              size="small"
+              type="button"
+              [disabled]="fetchingLatestSourceKey === selectedSource.sourceKey"
+              (click)="openDeleteSourceConfirmation(selectedSource)"
+            >
+              Remove source
+            </app-lens-button>
+          </div>
         </div>
+
+        @if (fetchLatestMessage) {
+          <p class="fetch-latest-feedback success" role="status">{{ fetchLatestMessage }}</p>
+        }
+
+        @if (fetchLatestError) {
+          <p class="fetch-latest-feedback error" role="alert">{{ fetchLatestError }}</p>
+        }
 
         @if (sourceVideosLoading) {
           <div class="source-inventory-state">

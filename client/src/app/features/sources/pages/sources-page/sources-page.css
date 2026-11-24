@@ -245,6 +245,29 @@
   font-size: 13px;
 }
 
+.source-inventory-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.fetch-latest-feedback {
+  margin: -5px 0 16px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.fetch-latest-feedback.success {
+  color: #2f6f49;
+  background: #edf8f1;
+}
+
+.fetch-latest-feedback.error {
+  color: #8a3636;
+  background: #fff3f3;
+}
+
 .delete-source-warning {
   padding: 16px;
   border: 1px solid #efd0cc;
@@ -864,6 +887,15 @@
   }
 
   .source-video-actions {
+    justify-content: flex-start;
+  }
+
+  .source-inventory-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .source-inventory-actions {
     justify-content: flex-start;
   }
 

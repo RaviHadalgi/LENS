@@ -86,3 +86,23 @@ Verification now includes all 33 server tests and all 32 client tests. The delet
 coverage checks associated-data removal, rollback-safe transactional structure,
 cross-source isolation, the DELETE request, confirmation cancellation, successful UI
 cleanup, and failure preservation.
+
+## Fetch latest checkpoint — 24 November 2026
+
+`POST /api/sources/:sourceKey/sync` refreshes a previously saved YouTube channel
+using its stored canonical channel identity. The server reads the public newest-first
+Atom feed and uses the YouTube video ID as the authoritative identity. It persists
+new entries until it reaches the first known ID, then stops. Repeating the refresh
+therefore creates no duplicate video rows and does not overwrite existing ownership.
+
+The selected-source header now includes Fetch latest beside Remove source. While a
+refresh is active, overlapping refresh/removal actions are blocked. On success, the
+client reloads the inventory from the server, updates the source item count, and
+reports either how many items were added or that the available content was already
+current. A failed refresh preserves the existing inventory and displays a retryable
+error.
+
+Verification now includes all 34 server tests and all 35 client tests. New coverage
+proves that a newer video is added before a known feed entry, repeated refreshes add
+nothing, the client uses the saved-source sync endpoint, inventory counts refresh,
+and failures preserve existing content.

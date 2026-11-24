@@ -13,6 +13,7 @@ describe('SourcesPage', () => {
     listSources: vi.fn(),
     analyzeSource: vi.fn(),
     syncYouTubeChannel: vi.fn(),
+    syncSource: vi.fn(),
     listSourceVideos: vi.fn(),
     updateSourceVideoStatus: vi.fn(),
     processSourceVideo: vi.fn(),
@@ -21,6 +22,7 @@ describe('SourcesPage', () => {
 
   beforeEach(async () => {
     apiMock.syncYouTubeChannel.mockReset();
+    apiMock.syncSource.mockReset();
     apiMock.listSourceVideos.mockReset();
     apiMock.processSourceVideo.mockReset();
     apiMock.deleteSource.mockReset();
@@ -366,6 +368,69 @@ describe('SourcesPage', () => {
     expect(component.sourceVideos).toHaveLength(1);
     expect(component.sourceVideos[0]?.videoId).toBe('VIDEO-1');
     expect(component.sourceVideosLoading).toBe(false);
+  });
+
+  it('fetches latest content for a saved source and refreshes its inventory', () => {
+    const source = {
+      sourceKey: 'youtube:channel-id:uc-test',
+      name: 'test',
+      perspective: 'YouTube source',
+      contentCount: 1,
+      conceptCount: 0,
+      status: 'verified' as const,
+    };
+    const latestVideo = {
+      videoId: 'LATEST', title: 'Latest video', url: 'https://youtube.com/watch?v=LATEST',
+      publishedAt: '2026-11-24T00:00:00.000Z', discoveredAt: '2026-11-24T01:00:00.000Z',
+      status: 'discovered' as const, currentVersionId: null, processedAt: null, claimCount: 0,
+    };
+    const storedVideo = {
+      videoId: 'STORED', title: 'Stored video', url: 'https://youtube.com/watch?v=STORED',
+      publishedAt: '2026-11-20T00:00:00.000Z', discoveredAt: '2026-11-20T01:00:00.000Z',
+      status: 'processed' as const, currentVersionId: 1, processedAt: '2026-11-20T02:00:00.000Z',
+      claimCount: 1,
+    };
+    component.selectedSource = source;
+    component.sources = [source];
+    apiMock.syncSource.mockReturnValue(of({
+      status: 'completed',
+      newVideos: [latestVideo],
+    }));
+    apiMock.listSourceVideos.mockReturnValue(of({ videos: [latestVideo, storedVideo] }));
+
+    component.fetchLatestContent(source);
+
+    expect(apiMock.syncSource).toHaveBeenCalledWith(source.sourceKey);
+    expect(apiMock.listSourceVideos).toHaveBeenCalledWith(source.sourceKey);
+    expect(component.sourceVideos).toEqual([latestVideo, storedVideo]);
+    expect(source.contentCount).toBe(2);
+    expect(component.fetchLatestMessage).toBe('1 new item added. No duplicates were created.');
+    expect(component.fetchingLatestSourceKey).toBeNull();
+  });
+
+  it('keeps existing content when fetching latest fails', () => {
+    const source = {
+      sourceKey: 'youtube:channel-id:uc-test',
+      name: 'test', perspective: 'YouTube source', contentCount: 1, conceptCount: 0,
+      status: 'verified' as const,
+    };
+    const existingVideos = [{
+      videoId: 'STORED', title: 'Stored video', url: 'https://youtube.com/watch?v=STORED',
+      publishedAt: null, discoveredAt: null, status: 'processed' as const,
+      currentVersionId: 1, processedAt: null, claimCount: 1,
+    }];
+    component.selectedSource = source;
+    component.sourceVideos = existingVideos;
+    apiMock.syncSource.mockReturnValue(throwError(() => ({
+      error: { message: 'YouTube could not be reached.' },
+    })));
+
+    component.fetchLatestContent(source);
+
+    expect(component.sourceVideos).toBe(existingVideos);
+    expect(component.fetchLatestError).toBe('YouTube could not be reached.');
+    expect(component.fetchingLatestSourceKey).toBeNull();
+    expect(apiMock.listSourceVideos).not.toHaveBeenCalled();
   });
 
   it('moves discovered source video to review', () => {

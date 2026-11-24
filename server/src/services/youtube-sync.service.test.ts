@@ -176,6 +176,54 @@ test("persists source sync state and deduplicates by stable videoId", async () =
   }
 });
 
+test("fetches only videos newer than the latest stored YouTube video", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lens-youtube-fetch-latest-"));
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+    const channelUrl = "https://youtube.com/channel/UCtest";
+    const storedVideo: YouTubeRecentVideo = {
+      videoId: "STORED",
+      title: "Previously stored video",
+      url: "https://youtube.com/watch?v=STORED",
+      publishedAt: "2026-11-20T00:00:00.000Z",
+    };
+    const latestVideo: YouTubeRecentVideo = {
+      videoId: "LATEST",
+      title: "Latest video",
+      url: "https://youtube.com/watch?v=LATEST",
+      publishedAt: "2026-11-24T00:00:00.000Z",
+    };
+
+    const initialSync = new YouTubeSyncService(store, [
+      new FakeYouTubeProvider([storedVideo]),
+    ]);
+    await initialSync.syncUrl(channelUrl);
+
+    const latestSync = new YouTubeSyncService(store, [
+      new FakeYouTubeProvider([latestVideo, storedVideo]),
+    ]);
+    const refreshed = await latestSync.syncUrl(channelUrl);
+
+    assert.equal(refreshed.status, "completed");
+    assert.deepEqual(refreshed.newVideos.map(video => video.videoId), ["LATEST"]);
+    assert.deepEqual(refreshed.skipped.map(video => video.videoId), ["STORED"]);
+
+    const repeated = await latestSync.syncUrl(channelUrl);
+    assert.equal(repeated.newVideos.length, 0);
+    assert.deepEqual(repeated.skipped.map(video => video.videoId), ["LATEST"]);
+
+    const stored = await store.listSourceVideos("youtube:channel-id:uctest");
+    assert.equal(stored.length, 2);
+    assert.deepEqual(new Set(stored.map(video => video.videoId)), new Set(["LATEST", "STORED"]));
+
+    await store.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("reports content inventory only for videos owned by each source", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lens-youtube-inventory-"));
   const databasePath = join(directory, "sync.sqlite");

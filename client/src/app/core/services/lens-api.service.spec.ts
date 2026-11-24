@@ -124,6 +124,36 @@ describe('LensApiService', () => {
     request.flush(response);
   });
 
+  it('syncs the latest content for a previously saved source', () => {
+    const sourceKey = 'youtube:channel-id:uc-test';
+
+    service.syncSource(sourceKey).subscribe((result) => {
+      expect(result.newVideos).toHaveLength(1);
+    });
+
+    const request = httpMock.expectOne(
+      'http://localhost:3000/api/sources/youtube%3Achannel-id%3Auc-test/sync',
+    );
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
+
+    request.flush({
+      platform: 'youtube',
+      type: 'channel',
+      url: 'https://youtube.com/channel/UCtest',
+      channelId: 'UCtest',
+      handle: '@test',
+      feedUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCtest',
+      status: 'completed',
+      sync: null,
+      discovered: [{ videoId: 'LATEST' }],
+      skipped: [{ videoId: 'STORED' }],
+      newVideos: [{ videoId: 'LATEST' }],
+      message: null,
+    });
+  });
+
   it('should list sources', () => {
     const response: ListSourcesResponse = {
       sources: [

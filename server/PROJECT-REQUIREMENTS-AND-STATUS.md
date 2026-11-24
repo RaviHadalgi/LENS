@@ -39,10 +39,10 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | Analyze source metadata before saving | **Partial** | Public YouTube page metadata and video oEmbed data are used when available. Invalid and unsupported inputs are rejected. | Improve metadata reliability, caching, rate handling, and evidence attribution. |
 | Support channel handles, IDs, custom URLs, and usernames | **Partial** | Common URL forms are detected. Canonical channel IDs are the reliable RSS sync path; other forms depend on public page resolution and can remain `needs-review`. | Add a robust channel-resolution flow with explicit user correction. |
 | Backfill full channel, selected playlists, recent content, or specific videos | **Partial** | Recent channel videos can be discovered from YouTube's public Atom feed. | Implement the selected backfill mode, full history pagination, playlist ingestion, and specific-video import. |
-| Stable external identity and duplicate prevention | **Implemented** | YouTube video ID is the stable content key. Existing videos are skipped during sync and the feed scan stops at known content. | Extend duplicate handling across playlists, direct video imports, and changed metadata. |
+| Stable external identity and duplicate prevention | **Implemented** | YouTube video ID is the stable content key. Initial and later refreshes skip existing videos and stop the newest-first feed scan at the first known ID, so repeated Fetch latest requests do not create duplicates. | Extend duplicate handling across playlists, direct video imports, and changed metadata. |
 | Source library and per-source content inventory | **Implemented** | SQLite stores source accounts and discovered videos; APIs list both with counts and current processing information. A source and all current source-owned records can be deleted atomically. | Add filtering, pagination, optional archival, and richer source health data. |
 | Delete a source and all associated data | **Implemented** | `DELETE /api/sources/:sourceKey` removes processing attempts, content versions, videos, and the source account in one SQLite transaction. Missing sources return `404`; any failure rolls back the operation. | Extend the deletion transaction when future source-owned knowledge tables are introduced. |
-| Lightweight recurring monitoring | **Partial** | A channel sync can be triggered manually and stores last-check and last-success timestamps. | Add a scheduler, configurable cadence, background execution, notifications, and failure recovery. |
+| Lightweight recurring monitoring | **Partial** | A saved YouTube channel can be refreshed manually through its source key. Each refresh stores last-check and last-success timestamps and returns only newly discovered videos. | Add a scheduler, configurable cadence, background execution, notifications, and failure recovery. |
 
 ### Processing lifecycle and versioning
 
@@ -105,6 +105,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | `DELETE /api/sources/:sourceKey` | Permanently deletes a source and its videos, processing attempts, and content versions in one transaction. |
 | `POST /api/sources/analyze` | Detects a YouTube URL type and returns available metadata plus a reviewable creator identity draft. |
 | `POST /api/sources/youtube/sync` | Resolves and syncs a YouTube channel's recent public feed into the local inventory. |
+| `POST /api/sources/:sourceKey/sync` | Fetches the latest public-feed entries for a previously saved YouTube channel using its stored canonical channel identity and stable video-ID deduplication. |
 | `GET /api/sources/:sourceKey/videos` | Lists a source's discovered videos, current version, processed time, and source-statement count. |
 | `PATCH /api/sources/:sourceKey/videos/:videoId/status` | Applies the allowed manual transitions to `needs-review` or `skipped`. |
 | `POST /api/sources/:sourceKey/videos/:videoId/process` | Validates a supplied transcript, runs the processing adapter, and creates or reuses a content version. |
@@ -169,8 +170,8 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 
 At this reconciliation point:
 
-- The server test suite passes: **33 tests**.
-- Tests cover source analysis/sync foundations, persistence, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
+- The server test suite passes: **34 tests**.
+- Tests cover source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, persistence, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
 - The default SQLite file is `server/data/youtube-sync.sqlite`; runtime data is excluded from version control.
 
 ## Change history
@@ -179,6 +180,7 @@ At this reconciliation point:
 | --- | --- | --- | --- |
 | 24 November 2026 | Reconciled all five shared LENS documents with the current server; documented source ingestion, SQLite inventory, transcript processing, content versioning, retry, ownership, and stale-attempt recovery. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Automatic transcript acquisition, semantic knowledge extraction, retrieval, review, personal knowledge, background monitoring, export, and production access controls remain future work. | Server build and all 32 server tests passed. Documentation consistency check passed. |
 | 24 November 2026 | Added permanent source deletion through `DELETE /api/sources/:sourceKey`. The deletion transaction removes the source account, owned videos, processing attempts, and content versions while preserving unrelated sources. | Source-level deletion is implemented. Future source-owned knowledge tables must join the same transaction; export, backup, retention, and full-account deletion remain future work. | Server build and all 33 server tests passed, including associated-data deletion and cross-source isolation. |
+| 24 November 2026 | Added `POST /api/sources/:sourceKey/sync` for manually fetching the latest content from a saved YouTube channel. It uses the stored canonical channel identity and stops at the first known stable YouTube video ID. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled monitoring and playlist/direct-video refresh remain future work. | Server build and all 34 server tests passed, including new-before-known discovery and repeated-refresh duplicate prevention. |
 
 ## Source documents reconciled
 
