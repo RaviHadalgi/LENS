@@ -578,6 +578,12 @@ export class SourcesPage implements OnInit, OnDestroy {
     return this.videoDateBoundary('latest');
   }
 
+  get isOlderWeekUnavailable(): boolean {
+    return (
+      this.olderVideoWeeksExhausted && this.currentVideoWeekIndex >= this.videoWeeks.length - 1
+    );
+  }
+
   showNewerVideoWeek(): void {
     if (this.currentVideoWeekIndex > 0 && !this.loadingOlderVideoWeek) {
       this.currentVideoWeekIndex -= 1;
@@ -586,13 +592,17 @@ export class SourcesPage implements OnInit, OnDestroy {
   }
 
   showOlderVideoWeek(): void {
-    if (this.loadingOlderVideoWeek || this.olderVideoWeeksExhausted) {
+    if (this.loadingOlderVideoWeek) {
       return;
     }
 
     if (this.currentVideoWeekIndex < this.videoWeeks.length - 1) {
       this.currentVideoWeekIndex += 1;
       this.videoWeekError = '';
+      return;
+    }
+
+    if (this.olderVideoWeeksExhausted) {
       return;
     }
 

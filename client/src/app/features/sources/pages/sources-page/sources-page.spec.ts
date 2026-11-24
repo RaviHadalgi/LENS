@@ -634,6 +634,62 @@ describe('SourcesPage', () => {
     expect(component.videoWeekError).toContain('after 3 attempts');
   });
 
+  it('keeps loaded weeks navigable after the next YouTube week fails', () => {
+    component.selectedSource = {
+      sourceKey: 'youtube:channel-id:uc-test',
+      name: 'test',
+      perspective: 'YouTube source',
+      contentCount: 2,
+      conceptCount: 0,
+      status: 'verified',
+    };
+    component.sourceVideos = [
+      {
+        videoId: 'LATEST',
+        title: 'Latest week',
+        url: 'https://youtube.com/watch?v=LATEST',
+        publishedAt: '2026-11-24T12:00:00.000Z',
+        discoveredAt: null,
+        status: 'discovered',
+        currentVersionId: null,
+        processedAt: null,
+        claimCount: 0,
+        sourceStatements: [],
+      },
+      {
+        videoId: 'SECOND',
+        title: 'Second week',
+        url: 'https://youtube.com/watch?v=SECOND',
+        publishedAt: '2026-11-17T12:00:00.000Z',
+        discoveredAt: null,
+        status: 'discovered',
+        currentVersionId: null,
+        processedAt: null,
+        claimCount: 0,
+        sourceStatements: [],
+      },
+    ];
+    apiMock.syncSource.mockReturnValue(throwError(() => new Error('offline')));
+
+    component.showOlderVideoWeek();
+    component.showOlderVideoWeek();
+
+    expect(component.olderVideoWeeksExhausted).toBe(true);
+    expect(component.currentVideoWeek?.videos[0]?.videoId).toBe('SECOND');
+    expect(component.isOlderWeekUnavailable).toBe(true);
+
+    component.showNewerVideoWeek();
+
+    expect(component.currentVideoWeek?.videos[0]?.videoId).toBe('LATEST');
+    expect(component.isOlderWeekUnavailable).toBe(false);
+
+    component.showOlderVideoWeek();
+
+    expect(component.currentVideoWeek?.videos[0]?.videoId).toBe('SECOND');
+    expect(component.videoWeekError).toBe('');
+    expect(apiMock.syncSource).toHaveBeenCalledTimes(3);
+  });
+
   it('moves discovered source video to review', () => {
     const source = {
       name: 'test',

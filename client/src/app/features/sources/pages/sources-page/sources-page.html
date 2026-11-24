@@ -424,12 +424,12 @@
               variant="secondary"
               size="small"
               type="button"
-              [disabled]="loadingOlderVideoWeek || olderVideoWeeksExhausted"
+              [disabled]="loadingOlderVideoWeek || isOlderWeekUnavailable"
               (click)="showOlderVideoWeek()"
             >
               @if (loadingOlderVideoWeek) {
                 Loading from YouTube ({{ videoWeekLoadAttempt }}/3)…
-              } @else if (olderVideoWeeksExhausted) {
+              } @else if (isOlderWeekUnavailable) {
                 No older week available
               } @else {
                 Older week ›
