@@ -13,6 +13,7 @@ import { LensApiService } from '../../../../core/services/lens-api.service';
 import type {
   SourceType,
   AnalyzeSourceResponse,
+  SourceStatement,
   SourceVideo,
 } from '../../../../core/services/lens-api.service';
 
@@ -175,6 +176,7 @@ export class SourcesPage implements OnInit {
         video.status = 'processed';
         video.currentVersionId = result.versionId;
         video.claimCount = result.claimCount;
+        video.sourceStatements = this.buildSourceStatements(transcript);
         video.processedAt = new Date().toISOString();
         this.processingSummaries.set(
           video.videoId,
@@ -196,6 +198,31 @@ export class SourcesPage implements OnInit {
         this.changeDetector.detectChanges();
       },
     });
+  }
+
+  formatStatementTimestamp(statement: SourceStatement): string | null {
+    if (statement.startSeconds === null) {
+      return null;
+    }
+
+    const start = this.formatSeconds(statement.startSeconds);
+
+    if (statement.endSeconds === null) {
+      return start;
+    }
+
+    return `${start}–${this.formatSeconds(statement.endSeconds)}`;
+  }
+
+  formatStatementContext(statement: SourceStatement): string | null {
+    const languagePrefix = 'Transcript language:';
+
+    if (!statement.context.startsWith(languagePrefix)) {
+      return statement.context || null;
+    }
+
+    const language = statement.context.slice(languagePrefix.length).trim();
+    return language && language !== 'und' ? `Language: ${language.toUpperCase()}` : null;
   }
 
   private loadSources(): void {
@@ -266,6 +293,10 @@ export class SourcesPage implements OnInit {
       .pipe(timeout(10_000))
       .subscribe({
         next: (result) => {
+          if (this.selectedSource?.sourceKey !== source.sourceKey) {
+            return;
+          }
+
           this.sourceVideos = result.videos;
           this.sourceVideosLoading = false;
           this.changeDetector.detectChanges();
@@ -273,6 +304,10 @@ export class SourcesPage implements OnInit {
 
         error: (error) => {
           console.error('Failed to load source content:', error);
+
+          if (this.selectedSource?.sourceKey !== source.sourceKey) {
+            return;
+          }
 
           this.sourceVideosLoading = false;
           this.sourceVideosError = 'Unable to load this source’s content.';
@@ -601,5 +636,29 @@ export class SourcesPage implements OnInit {
 
       identityStatus: identity?.status ?? 'needs-review',
     };
+  }
+
+  private buildSourceStatements(transcript: string): SourceStatement[] {
+    return transcript
+      .split(/\n\s*\n/)
+      .map(text => text.trim())
+      .filter(Boolean)
+      .map(text => ({
+        text,
+        context: 'Transcript language: und',
+        startSeconds: null,
+        endSeconds: null,
+      }));
+  }
+
+  private formatSeconds(seconds: number): string {
+    const totalSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const remainder = totalSeconds % 60;
+
+    return hours > 0
+      ? `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
+      : `${minutes}:${String(remainder).padStart(2, '0')}`;
   }
 }

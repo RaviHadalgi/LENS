@@ -3,7 +3,10 @@ import { of, throwError } from 'rxjs';
 import { describe, beforeEach, expect, it, vi } from 'vitest';
 
 import { SourcesPage } from './sources-page';
-import { LensApiService } from '../../../../core/services/lens-api.service';
+import {
+  LensApiService,
+  type SourceVideo,
+} from '../../../../core/services/lens-api.service';
 
 describe('SourcesPage', () => {
   let fixture: ComponentFixture<SourcesPage>;
@@ -356,6 +359,12 @@ describe('SourcesPage', () => {
             title: 'Owned video',
             url: 'https://youtube.com/watch?v=VIDEO-1',
             publishedAt: '2026-08-30T00:00:00Z',
+            sourceStatements: [{
+              text: 'Saved transcript statement.',
+              context: 'Transcript language: en',
+              startSeconds: 12,
+              endSeconds: 18,
+            }],
           },
         ],
       }),
@@ -368,6 +377,9 @@ describe('SourcesPage', () => {
     expect(component.sourceVideos).toHaveLength(1);
     expect(component.sourceVideos[0]?.videoId).toBe('VIDEO-1');
     expect(component.sourceVideosLoading).toBe(false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Saved transcript statement.');
+    expect(fixture.nativeElement.textContent).toContain('0:12–0:18');
   });
 
   it('fetches latest content for a saved source and refreshes its inventory', () => {
@@ -383,12 +395,17 @@ describe('SourcesPage', () => {
       videoId: 'LATEST', title: 'Latest video', url: 'https://youtube.com/watch?v=LATEST',
       publishedAt: '2026-11-24T00:00:00.000Z', discoveredAt: '2026-11-24T01:00:00.000Z',
       status: 'discovered' as const, currentVersionId: null, processedAt: null, claimCount: 0,
+      sourceStatements: [],
     };
     const storedVideo = {
       videoId: 'STORED', title: 'Stored video', url: 'https://youtube.com/watch?v=STORED',
       publishedAt: '2026-11-20T00:00:00.000Z', discoveredAt: '2026-11-20T01:00:00.000Z',
       status: 'processed' as const, currentVersionId: 1, processedAt: '2026-11-20T02:00:00.000Z',
       claimCount: 1,
+      sourceStatements: [{
+        text: 'Stored statement.', context: 'Transcript language: en',
+        startSeconds: null, endSeconds: null,
+      }],
     };
     component.selectedSource = source;
     component.sources = [source];
@@ -418,6 +435,10 @@ describe('SourcesPage', () => {
       videoId: 'STORED', title: 'Stored video', url: 'https://youtube.com/watch?v=STORED',
       publishedAt: null, discoveredAt: null, status: 'processed' as const,
       currentVersionId: 1, processedAt: null, claimCount: 1,
+      sourceStatements: [{
+        text: 'Existing statement.', context: 'Transcript language: und',
+        startSeconds: null, endSeconds: null,
+      }],
     }];
     component.selectedSource = source;
     component.sourceVideos = existingVideos;
@@ -453,6 +474,7 @@ describe('SourcesPage', () => {
       currentVersionId: null,
       processedAt: null,
       claimCount: 0,
+      sourceStatements: [],
     };
 
     component.sources = [source];
@@ -481,11 +503,12 @@ describe('SourcesPage', () => {
       name: 'test', perspective: 'YouTube source', status: 'verified' as const,
       contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
     };
-    const video = {
+    const video: SourceVideo = {
       videoId: 'VIDEO-123', title: 'Test video',
       url: 'https://youtube.com/watch?v=VIDEO-123', publishedAt: null,
       discoveredAt: null, status: 'needs-review' as const,
       currentVersionId: null, processedAt: null, claimCount: 0,
+      sourceStatements: [],
     };
     component.selectedSource = source;
     component.sourceVideos = [video];
@@ -504,6 +527,10 @@ describe('SourcesPage', () => {
       'First source statement.\n\nSecond source statement.',
     );
     expect(video.status).toBe('processed');
+    expect(video.sourceStatements.map(statement => statement.text)).toEqual([
+      'First source statement.',
+      'Second source statement.',
+    ]);
     expect(component.processingSummaries.get(video.videoId)).toContain('2 source statements');
     expect(component.processingVideoId).toBeNull();
   });
@@ -541,6 +568,10 @@ describe('SourcesPage', () => {
       videoId: 'VIDEO-123', title: 'Test video', url: 'https://youtube.com/watch?v=VIDEO-123',
       publishedAt: null, discoveredAt: null, status: 'processed', currentVersionId: 1,
       processedAt: '2026-11-24T00:00:00.000Z', claimCount: 1,
+      sourceStatements: [{
+        text: 'Saved statement.', context: 'Transcript language: und',
+        startSeconds: null, endSeconds: null,
+      }],
     }];
     component.processingSummaries.set('VIDEO-123', 'Saved.');
     component.openDeleteSourceConfirmation(source);

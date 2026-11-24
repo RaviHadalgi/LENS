@@ -5,6 +5,7 @@ import type { VideoProcessingResult } from "./video-processing.service";
 
 import type {
   SourceType,
+  SourceStatement,
   SourceVideo,
   YouTubeRecentVideo,
   YouTubeSyncState,
@@ -441,19 +442,51 @@ export class YouTubeSyncStore {
         yv.video_id ASC
       `,
       )
-      .all(sourceKey) as unknown as Array<Omit<SourceVideo, "claimCount"> & { resultJson: string | null }>;
+      .all(sourceKey) as unknown as Array<
+      Omit<SourceVideo, "claimCount" | "sourceStatements"> & { resultJson: string | null }
+    >;
 
     return rows.map(({ resultJson, ...row }) => {
-      let claimCount = 0;
+      let sourceStatements: SourceStatement[] = [];
+
       if (resultJson) {
         try {
-          const parsed = JSON.parse(resultJson) as { claims?: unknown[] };
-          claimCount = Array.isArray(parsed.claims) ? parsed.claims.length : 0;
+          const parsed = JSON.parse(resultJson) as { claims?: unknown };
+
+          if (Array.isArray(parsed.claims)) {
+            sourceStatements = parsed.claims.flatMap((value): SourceStatement[] => {
+              if (!value || typeof value !== "object") {
+                return [];
+              }
+
+              const statement = value as Record<string, unknown>;
+
+              if (typeof statement["text"] !== "string") {
+                return [];
+              }
+
+              return [{
+                text: statement["text"],
+                context: typeof statement["context"] === "string" ? statement["context"] : "",
+                startSeconds: typeof statement["startSeconds"] === "number"
+                  ? statement["startSeconds"]
+                  : null,
+                endSeconds: typeof statement["endSeconds"] === "number"
+                  ? statement["endSeconds"]
+                  : null,
+              }];
+            });
+          }
         } catch {
-          claimCount = 0;
+          sourceStatements = [];
         }
       }
-      return { ...row, claimCount };
+
+      return {
+        ...row,
+        claimCount: sourceStatements.length,
+        sourceStatements,
+      };
     });
   }
 

@@ -28,7 +28,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Main areas: Ask, Sources, Knowledge, Review, Compare, Life, and Settings | **Partial** | Ask and Sources have routes. The sidebar shows the broader information architecture. | Implement routes and working pages for Knowledge, Review, Compare, Life, and Settings. |
 | Responsive desktop-first experience | **Partial** | The shell, source modal, cards, and source inventory have responsive styling. | Test and refine all final workflows at supported desktop/tablet sizes and define accessibility targets. |
 | Shared reusable UI components | **Implemented** | The client uses shared `LensButton`, `LensCard`, `LensBadge`, `LensFormField`, and `LensModal` components plus reusable Ask components. | Expand the system with tables, empty/error states, evidence displays, review controls, and notifications. |
-| Make source material, LENS synthesis, and user judgment visually distinct | **Partial** | Ask cards and perspective labels demonstrate the intended visual separation, and transcript processing is described as source statements. | Bind the presentation to real data and add explicit labels for source text, synthesis, verification, and user notes. |
+| Make source material, LENS synthesis, and user judgment visually distinct | **Partial** | Saved transcript panels explicitly label verbatim source material, while Ask cards and perspective labels demonstrate the intended synthesis presentation. | Bind Ask to real data and add explicit labels for verification and user notes. |
 
 ### Sources and ingestion
 
@@ -41,7 +41,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Save a source library | **Implemented** | The Sources page loads persisted source accounts from the server and displays source type, state, inventory size, and sync details. | Add search/filter, optional archive, health indicators, and source settings. |
 | Fetch latest content from a saved source without duplicates | **Implemented** | A selected source has a Fetch latest action. It refreshes the saved source through its source key, reloads the inventory, updates the item count, prevents overlapping refreshes, and reports whether new content was added or the source was already current. Server-side stable-ID handling prevents duplicates. | Add scheduled refresh, notification preferences, and refresh support for future playlist/direct-video sources. |
 | Delete a source with explicit confirmation | **Implemented** | A selected source has a Remove source action. A modal explains that associated content and history will be deleted; Cancel/close leaves the source unchanged, while Remove calls the deletion API and clears the deleted source from the interface. Server errors keep the source and modal available for retry. | Extend the warning text if future source-owned data categories are added. |
-| Show per-source content inventory and processing status | **Implemented** | Selecting a source loads videos with published date, workflow status, current version, and source-statement count. | Add pagination, sorting, richer failure details, processing history, and version history. |
+| Show per-source content inventory, saved transcripts, and processing status | **Implemented** | Selecting a source loads its videos with published date, workflow status, current version, statement count, and the persisted verbatim transcript statements. Optional timestamps are formatted as readable ranges, and long transcripts remain contained within the video card. | Add pagination, sorting, richer failure details, processing history, prior-version browsing, and direct statement editing. |
 | Support discovered, processing, processed, skipped, needs-review, and failed states | **Implemented** | The inventory renders the persisted workflow state and exposes allowed review/skip/process/retry actions. It does not let the user manually mark an item processed. | Add a queued state and background progress/notification experience. |
 | Retry failed processing | **Implemented** | Failed items can be retried through the transcript-processing flow. | Add retry explanation, attempt history, and policy/limit feedback. |
 | Notify users when new content or review work arrives | **Not implemented** | No notification center or background update exists. | Add scheduled-sync results, review counts, completion/failure notices, and user preferences. |
@@ -52,8 +52,8 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | --- | --- | --- | --- |
 | Obtain and process transcripts where permitted | **Partial** | A user can paste transcript text for a video and submit it to the server. | Add a permitted automatic transcript option, availability state, provider choice, and clear fallback behavior. |
 | Segment long-form content | **Partial** | Blank-line-separated paragraphs are submitted as individual segments/source statements. | Add automatic topic segmentation, editing/reordering, merge/split controls, and contextual overlap. |
-| Retain source timestamps | **Partial** | The API model supports timestamps, but the current paste interface sends `null` timestamps. | Add timestamp input/import and timestamp links back to the original source. |
-| Show safe processing results | **Implemented** | The client reports processed versus unchanged content, current version, and source-statement count. | Show detailed statements, provenance, attempt history, and changed-version comparison. |
+| Retain source timestamps | **Partial** | The API model stores optional start/end timestamps and the saved transcript view renders them as readable ranges. The current paste interface still sends `null` timestamps. | Add timestamp input/import and links back to the original source moment. |
+| Show safe processing results | **Implemented** | The client reports processed versus unchanged content, current version, source-statement count, and every stored statement for the current version. Newly processed text appears immediately. | Add richer provenance, attempt history, prior-version selection, and changed-version comparison. |
 | Allow transcript correction and new versions | **Implemented** | A processed item can be opened again with an updated transcript; unchanged input reuses the version and changed input creates a new version. | Preload the existing transcript, present diffs, and allow version selection/rollback. |
 | Allow users to edit segments and extracted claims | **Not implemented** | Transcript text can be resubmitted, but there is no segment or claim editor after processing. | Add reviewed segment/claim editing with audit history and immutable source text. |
 
@@ -96,7 +96,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Route | Current state |
 | --- | --- |
 | `/ask` | Working persistent multi-turn interface. `?chat=<conversationId>` restores a saved session; answers are still mock and no real retrieval occurs. |
-| `/sources` | Working local-server integration for analysis, channel sync, latest-content refresh, source inventory, video status, transcript processing, and confirmed source deletion. |
+| `/sources` | Working local-server integration for analysis, channel sync, latest-content refresh, source inventory, saved transcript display, video status, transcript processing, and confirmed source deletion. |
 | `/knowledge` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/review` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/compare` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
@@ -116,8 +116,9 @@ The root route redirects to `/ask`, and unknown routes also redirect to `/ask`.
 7. Move a discovered/failed/skipped item to `needs-review`, or skip an eligible item.
 8. Paste transcript text; blank lines create separate source statements.
 9. Process, retry, or submit an updated transcript.
-10. Display processed/unchanged outcome, current content version, and statement count.
-11. Choose Remove source, review the permanent-deletion warning, and either cancel without changes or confirm removal of the source and its associated data.
+10. Display processed/unchanged outcome, current content version, statement count, and the saved verbatim transcript statements under the owning video.
+11. Show readable timestamp ranges when stored; contain long transcripts in a scrollable statement panel.
+12. Choose Remove source, review the permanent-deletion warning, and either cancel without changes or confirm removal of the source and its associated data.
 
 ### Working Ask presentation
 
@@ -141,7 +142,7 @@ Ask questions, modes, answers, and ordering are stored by the local server. Answ
 - Backfill selection is visual only; it does not yet change the server ingestion strategy.
 - Creator profile edits are not persisted.
 - Transcript entry is manual, splits only on blank lines, and does not capture timestamps.
-- Processed statements, context, provenance, attempts, and version history cannot be browsed in detail.
+- Current saved statements and basic context can be browsed. Rich provenance, processing attempts, prior versions, and version comparisons are not yet visible.
 - There is no claim/concept editor, ambiguity review, novelty/contradiction display, or confidence/verification workflow.
 - There is no user knowledge state, personal note, goal, action, conclusion, external research, or Life interface.
 - There are no background progress updates, notification center, offline/reconnect treatment, or scheduled monitoring controls.
@@ -169,9 +170,9 @@ At this reconciliation point:
 
 - The client test suite passes: **42 tests**.
 - The Angular production build passes.
-- The production bundle is approximately **406.93 kB raw** and **102.39 kB estimated transfer** at the latest verification.
+- The production bundle is approximately **410.60 kB raw** and **103.14 kB estimated transfer** at the latest verification.
 - The Sources page stylesheet is below the configured 12 kB warning threshold; the maximum style error limit remains 16 kB.
-- Tests cover conversation API calls including deletion, Recent loading, active-session restoration, turn saving, Recent reordering, deletion state cleanup, and rejection of stale load/save responses after New chat, plus Sources interactions including inventory loading, latest-content refresh, failure preservation, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, and successful removal.
+- Tests cover conversation API calls including deletion, Recent loading, active-session restoration, turn saving, Recent reordering, deletion state cleanup, and rejection of stale load/save responses after New chat, plus Sources interactions including inventory loading, persisted transcript rendering, timestamp formatting, latest-content refresh, failure preservation, status actions, processing, immediate statement display, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, and successful removal.
 
 ## Change history
 
@@ -182,6 +183,7 @@ At this reconciliation point:
 | 24 November 2026 | Added Fetch latest beside the selected source controls. It refreshes the saved source, reloads its inventory and count, blocks overlapping refreshes, and reports new-content or already-current outcomes. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled refresh and non-channel source support remain future work. | All 35 client tests passed; server deduplication coverage and the Angular production build passed. |
 | 24 November 2026 | Replaced the illustrative Recent list with locally persisted Ask sessions. The first question creates a session, follow-ups append to the same context, selecting Recent restores the full conversation, and New chat starts a separate context on the next question. | Ask session persistence is implemented. The answer payload remains mock data; retrieval, grounded synthesis, and conversation management controls remain future work. | All 41 client tests, all 36 server tests, and the Angular production build passed. |
 | 24 November 2026 | Added a Delete control to every Recent session with a confirmation dialog. Confirming removes the complete saved conversation; deleting the open session returns to a blank Ask page. New chat now hard-resets the Ask URL and ignores late load/save responses so the prior context cannot reappear. | Conversation deletion and reliable New chat isolation are implemented. Rename, search, pagination, retention controls, and grounded answer retrieval remain future work. | All 42 client tests, all 36 server tests, and the Angular production build passed. |
+| 24 November 2026 | Added saved transcript display to the selected source inventory. Each processed video now shows its current version's verbatim statements, optional timestamp ranges, and context in a contained panel; newly processed text appears immediately. | Current saved transcripts are browsable. Prior versions, attempt history, richer provenance, and statement editing remain future work. | All 42 client tests, all 36 server tests, and the Angular production build passed. |
 
 ## Source documents reconciled
 

@@ -40,7 +40,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | Support channel handles, IDs, custom URLs, and usernames | **Partial** | Common URL forms are detected. Canonical channel IDs are the reliable RSS sync path; other forms depend on public page resolution and can remain `needs-review`. | Add a robust channel-resolution flow with explicit user correction. |
 | Backfill full channel, selected playlists, recent content, or specific videos | **Partial** | Recent channel videos can be discovered from YouTube's public Atom feed. | Implement the selected backfill mode, full history pagination, playlist ingestion, and specific-video import. |
 | Stable external identity and duplicate prevention | **Implemented** | YouTube video ID is the stable content key. Initial and later refreshes skip existing videos and stop the newest-first feed scan at the first known ID, so repeated Fetch latest requests do not create duplicates. | Extend duplicate handling across playlists, direct video imports, and changed metadata. |
-| Source library and per-source content inventory | **Implemented** | SQLite stores source accounts and discovered videos; APIs list both with counts and current processing information. A source and all current source-owned records can be deleted atomically. | Add filtering, pagination, optional archival, and richer source health data. |
+| Source library and per-source content inventory | **Implemented** | SQLite stores source accounts and discovered videos. The inventory API returns counts, processing information, and the verbatim source statements from each video's current saved content version. A source and all current source-owned records can be deleted atomically. | Add filtering, pagination, optional archival, richer source health data, and version-history browsing. |
 | Delete a source and all associated data | **Implemented** | `DELETE /api/sources/:sourceKey` removes processing attempts, content versions, videos, and the source account in one SQLite transaction. Missing sources return `404`; any failure rolls back the operation. | Extend the deletion transaction when future source-owned knowledge tables are introduced. |
 | Lightweight recurring monitoring | **Partial** | A saved YouTube channel can be refreshed manually through its source key. Each refresh stores last-check and last-success timestamps and returns only newly discovered videos. | Add a scheduler, configurable cadence, background execution, notifications, and failure recovery. |
 
@@ -107,7 +107,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | `POST /api/sources/analyze` | Detects a YouTube URL type and returns available metadata plus a reviewable creator identity draft. |
 | `POST /api/sources/youtube/sync` | Resolves and syncs a YouTube channel's recent public feed into the local inventory. |
 | `POST /api/sources/:sourceKey/sync` | Fetches the latest public-feed entries for a previously saved YouTube channel using its stored canonical channel identity and stable video-ID deduplication. |
-| `GET /api/sources/:sourceKey/videos` | Lists a source's discovered videos, current version, processed time, and source-statement count. |
+| `GET /api/sources/:sourceKey/videos` | Lists a source's discovered videos, current version, processed time, source-statement count, and the current version's stored verbatim statements with context and optional timestamps. |
 | `PATCH /api/sources/:sourceKey/videos/:videoId/status` | Applies the allowed manual transitions to `needs-review` or `skipped`. |
 | `POST /api/sources/:sourceKey/videos/:videoId/process` | Validates a supplied transcript, runs the processing adapter, and creates or reuses a content version. |
 | `GET /api/conversations` | Lists up to 30 Ask sessions in most-recently-updated order with titles and turn counts. |
@@ -141,7 +141,7 @@ The architecture documents also call for Creator, ContentItem, Segment, Claim, C
 7. Canonicalize and hash the transcript.
 8. Preserve every segment as a source statement; no summary or inferred claim is invented.
 9. Reuse the matching content version or create a new immutable version.
-10. Mark the video processed, expose the current version and statement count, and retain retry/audit data.
+10. Mark the video processed, expose the current version and saved source statements, and retain retry/audit data.
 
 This covers the ingestion and safe-processing foundation. It does not yet perform the architecture's semantic extraction, knowledge comparison, graph updates, retrieval indexing, or notification steps.
 
@@ -152,7 +152,7 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 - Paragraphs/segments are preserved as source statements, not normalized semantic claims.
 - No model is used for segmentation, perspective classification, novelty, contradiction detection, synthesis, or verification.
 - Processing runs inside the request instead of a durable background queue.
-- Content-version and attempt histories are stored but not exposed through public API routes.
+- The current version's source statements are exposed in the source inventory, but prior content-version and processing-attempt histories are stored without public history routes.
 - The SQLite result payload is serialized JSON; normalized Claim, Segment, Provenance, Concept, and Relationship tables are still needed.
 - Ask conversation history is local and persistent, but the stored answers are still client-generated mock content; there is no search index, embedding store, knowledge graph, retrieval service, grounded synthesis, or retrieval trace.
 - Conversation rename, search, pagination beyond the 30-item Recent list, export, and configurable retention are not implemented.
@@ -179,7 +179,7 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 At this reconciliation point:
 
 - The server test suite passes: **36 tests**.
-- Tests cover conversation creation, multi-turn append, recent-session deduplication, restart persistence, complete conversation deletion with unrelated-session isolation, and rejection of unknown sessions, plus source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
+- Tests cover conversation creation, multi-turn append, recent-session deduplication, restart persistence, complete conversation deletion with unrelated-session isolation, and rejection of unknown sessions, plus source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, state transitions, ownership, transactional source deletion and isolation, processing success/failure, persisted source-statement retrieval, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
 - The default SQLite files are `server/data/youtube-sync.sqlite` and `server/data/lens-conversations.sqlite`; runtime data is excluded from version control.
 
 ## Change history
@@ -191,6 +191,7 @@ At this reconciliation point:
 | 24 November 2026 | Added `POST /api/sources/:sourceKey/sync` for manually fetching the latest content from a saved YouTube channel. It uses the stored canonical channel identity and stops at the first known stable YouTube video ID. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled monitoring and playlist/direct-video refresh remain future work. | Server build and all 34 server tests passed, including new-before-known discovery and repeated-refresh duplicate prevention. |
 | 24 November 2026 | Added local Ask conversation storage and APIs. A first turn creates a titled session, later turns append to the same context, Recent is ordered by the updated timestamp, and full ordered history survives server restart. | Ask session persistence is implemented. Answers remain client-generated mock data; retrieval, grounded synthesis, rename/delete/search, and retention controls remain future work. | Server build and all 36 server tests passed, including multi-turn append, recent-session behavior, restart persistence, and unknown-session rejection. |
 | 24 November 2026 | Added `DELETE /api/conversations/:conversationId`. Deleting a conversation removes its complete turn history through the conversation foreign key while preserving every other session. | Ask conversation deletion is implemented. Rename, search, pagination, export, and configurable retention remain future work. | Server build and all 36 server tests passed, including complete deletion, repeat-delete handling, and unrelated-session isolation. |
+| 24 November 2026 | Extended the per-source video inventory to return the current content version's stored source statements, context, and optional timestamps. Malformed legacy result JSON falls back to an empty statement list without breaking the inventory. | Saved transcripts can now be read when a source is selected. Prior-version browsing, attempt history, transcript editing, and normalized provenance remain future work. | Server build and all 36 server tests passed, including persisted statement and timestamp retrieval. |
 
 ## Source documents reconciled
 

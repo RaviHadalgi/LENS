@@ -102,6 +102,13 @@ export interface AnalyzeSourceResponse {
   sync?: YouTubeSyncResponse | null;
 }
 
+export interface SourceStatement {
+  text: string;
+  context: string;
+  startSeconds: number | null;
+  endSeconds: number | null;
+}
+
 export interface SourceVideo {
   videoId: string;
   title: string | null;
@@ -112,4 +119,5 @@ export interface SourceVideo {
   currentVersionId: number | null;
   processedAt: string | null;
   claimCount: number;
+  sourceStatements: SourceStatement[];
 }

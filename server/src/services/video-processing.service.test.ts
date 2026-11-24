@@ -33,7 +33,9 @@ test("persists successful results, timestamps and audit history across reopen", 
   const service = new VideoProcessingService(store, { async process() { return result; } });
   assert.equal((await service.process("video-a", "source-a")).status, "processed");
   await store.close();
-  assert.equal((await store.listSourceVideos("source-a"))[0].status, "processed");
+  const savedVideo = (await store.listSourceVideos("source-a"))[0];
+  assert.equal(savedVideo.status, "processed");
+  assert.deepEqual(savedVideo.sourceStatements, result.claims);
   const attempts = await store.listProcessingAttempts("video-a", "source-a");
   assert.equal(attempts.length, 1);
   assert.equal(attempts[0].resultJson, null);

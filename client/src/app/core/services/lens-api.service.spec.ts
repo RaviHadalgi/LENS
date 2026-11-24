@@ -308,6 +308,7 @@ describe('LensApiService', () => {
 
     service.listSourceVideos(sourceKey).subscribe((result) => {
       expect(result.videos).toHaveLength(1);
+      expect(result.videos[0]?.sourceStatements[0]?.text).toBe('Saved transcript statement.');
     });
 
     const request = httpMock.expectOne(
@@ -323,6 +324,12 @@ describe('LensApiService', () => {
           title: 'Test video',
           url: 'https://youtube.com/watch?v=VIDEO-1',
           publishedAt: '2026-08-30T00:00:00Z',
+          sourceStatements: [{
+            text: 'Saved transcript statement.',
+            context: 'Transcript language: en',
+            startSeconds: 12,
+            endSeconds: 18,
+          }],
         },
       ],
     });

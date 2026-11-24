@@ -152,6 +152,14 @@ export interface SourceVideo {
   currentVersionId: number | null;
   processedAt: string | null;
   claimCount: number;
+  sourceStatements: SourceStatement[];
+}
+
+export interface SourceStatement {
+  text: string;
+  context: string;
+  startSeconds: number | null;
+  endSeconds: number | null;
 }
 
 export interface ListSourceVideosResponse {

@@ -255,6 +255,42 @@
                   </p>
                 }
 
+                @if (video.sourceStatements.length > 0) {
+                  <section class="saved-transcript" aria-label="Saved transcript">
+                    <div class="saved-transcript-header">
+                      <div>
+                        <span class="saved-transcript-label">Saved transcript</span>
+                        <strong>
+                          {{ video.sourceStatements.length }}
+                          {{ video.sourceStatements.length === 1 ? 'statement' : 'statements' }}
+                        </strong>
+                      </div>
+
+                      @if (video.currentVersionId) {
+                        <span class="saved-transcript-version">
+                          Version {{ video.currentVersionId }}
+                        </span>
+                      }
+                    </div>
+
+                    <div class="saved-transcript-statements">
+                      @for (statement of video.sourceStatements; track $index) {
+                        <article class="saved-transcript-statement">
+                          @if (formatStatementTimestamp(statement); as timestamp) {
+                            <span class="statement-timestamp">{{ timestamp }}</span>
+                          }
+
+                          <p>{{ statement.text }}</p>
+
+                          @if (formatStatementContext(statement); as context) {
+                            <small>{{ context }}</small>
+                          }
+                        </article>
+                      }
+                    </div>
+                  </section>
+                }
+
                 @if (processingVideoId === video.videoId) {
                   <div class="transcript-panel">
                     <label [for]="'transcript-' + video.videoId">Transcript or source text</label>

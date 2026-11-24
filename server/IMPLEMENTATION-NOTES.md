@@ -136,3 +136,18 @@ unchanged. The client asks for confirmation before calling this endpoint. Deleti
 the open conversation also resets Ask to a clean new session. New chat now invalidates
 pending conversation loads and saves, so a late response cannot reactivate the
 previous context. Verification includes all 36 server tests and all 42 client tests.
+
+## Saved transcript display checkpoint — 24 November 2026
+
+The per-source video inventory now reads each video's current `content_versions`
+result and returns the stored verbatim source statements, their context, and optional
+start/end timestamps alongside the existing version and statement count. Result JSON
+is parsed defensively so an invalid legacy payload produces an empty statement list
+instead of failing the source inventory. Prior content versions remain stored but are
+not yet exposed for browsing.
+
+Selecting a source in the Angular client displays these statements below the owning
+processed video. Long transcripts use a contained scroll area, timestamps are shown
+as readable ranges when present, and a newly submitted transcript appears immediately
+after processing. Verification includes all 36 server tests and all 42 client tests,
+plus the Angular production build.
