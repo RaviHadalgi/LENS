@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 
 import sourceRoutes from './routes/source.routes';
+import conversationRoutes from './routes/conversation.routes';
 
 const app = express();
 const PORT = 3000;
@@ -18,6 +19,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/sources', sourceRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 app.listen(PORT, () => {
   console.log(

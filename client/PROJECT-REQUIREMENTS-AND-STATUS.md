@@ -61,7 +61,8 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 
 | Requirement from the shared documents | Status | Current client behavior | Remaining work |
 | --- | --- | --- | --- |
-| Natural-language Ask interface | **Partial** | Ask input, submission behavior, Enter/Shift+Enter handling, suggestions, conversation layout, and answer cards are implemented. Responses are generated from local mock data. | Connect Ask to a real server retrieval and synthesis API. |
+| Natural-language Ask interface | **Partial** | Ask input, submission behavior, Enter/Shift+Enter handling, suggestions, multi-turn conversation layout, and answer cards are implemented. Each submitted turn is saved to the active local session, but responses are generated from local mock data. | Connect Ask to a real server retrieval and synthesis API. |
+| Persist and resume Ask conversations | **Implemented** | The first question creates a session titled from that question. Follow-ups remain in the same context, update its position in Recent, and survive reload/restart. Selecting Recent restores every ordered turn; New chat clears the active context so the next question creates a separate session. | Add conversation rename, delete, search, pagination, and retention controls when required. |
 | Quick/current, related knowledge, and deep analysis levels | **Partial** | The interface exposes All, Related, and Deep modes and changes mock copy. | Define the final names/contracts and send mode-specific queries to the server. |
 | Compare creator perspectives | **Partial** | The mock answer presents separate source-perspective cards, common ground, differences, and example timestamps. | Populate these from saved claims and implement a dedicated Compare workflow. |
 | Filter repetition and surface new connections | **Partial** | The mock answer displays example counts for repeated items and new connections. | Compute and explain these values from real novelty classifications. |
@@ -94,7 +95,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 
 | Route | Current state |
 | --- | --- |
-| `/ask` | Working interface with mock answer generation; no real retrieval. |
+| `/ask` | Working persistent multi-turn interface. `?chat=<conversationId>` restores a saved session; answers are still mock and no real retrieval occurs. |
 | `/sources` | Working local-server integration for analysis, channel sync, latest-content refresh, source inventory, video status, transcript processing, and confirmed source deletion. |
 | `/knowledge` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/review` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
@@ -125,13 +126,15 @@ The root route redirects to `/ask`, and unknown routes also redirect to `/ask`.
 - Source perspective cards with creator, perspective, context, statement, and timestamp presentation.
 - Common-ground and differences sections.
 - Summary statistics and a visual evidence/explanation affordance.
-- New-chat reset behavior.
+- Persistent multi-turn context for follow-up questions.
+- Recent sessions loaded in most-recently-updated order; choosing one restores its full context.
+- New chat clears the active session so the next question starts a separate context.
 
-All Ask content and statistics are currently mock data and must not be treated as retrieved LENS knowledge.
+Ask questions, modes, answers, and ordering are stored by the local server. Answer content and statistics are currently mock data and must not be treated as retrieved LENS knowledge.
 
 ## Current limitations
 
-- Ask is a presentation prototype; it does not call the server, search local data, or generate grounded answers.
+- Ask calls the server to persist and restore conversation history, but it does not search source knowledge or generate grounded answers.
 - Only Ask and Sources are routable. Knowledge, Review, Compare, Life, and Settings remain navigation placeholders.
 - Playlist and video URLs can be analyzed, but the end-to-end save/process flow is currently built around channel sync.
 - Backfill selection is visual only; it does not yet change the server ingestion strategy.
@@ -142,7 +145,7 @@ All Ask content and statistics are currently mock data and must not be treated a
 - There is no user knowledge state, personal note, goal, action, conclusion, external research, or Life interface.
 - There are no background progress updates, notification center, offline/reconnect treatment, or scheduled monitoring controls.
 - The API base URL is hard-coded to `http://localhost:3000/api` instead of using environment configuration.
-- Recent-chat items and some shell actions are illustrative and are not backed by saved conversations or settings.
+- Conversation rename, delete, search, pagination beyond the 30-item Recent list, and retention controls are not implemented.
 - Accessibility, keyboard coverage, and responsive behavior need a dedicated audit after the full workflows exist.
 
 ## Future enhancement order
@@ -151,7 +154,7 @@ All Ask content and statistics are currently mock data and must not be treated a
 2. **Improve transcript work:** offer permitted automatic retrieval plus manual fallback, timestamps, language, preview, segment editing, and source links.
 3. **Expose processing evidence:** add views for statements, normalized claims, provenance, attempts, versions, failures, and changed-content diffs.
 4. **Build the Review page:** combine source identity, failed content, uncertain claims, conflicts, and missing evidence into one actionable queue.
-5. **Connect Ask to retrieval:** replace mock answers with real local queries, loading/error/empty states, citations, timestamps, and retrieval explanations.
+5. **Connect Ask to retrieval:** replace mock answers with real local queries, citations, timestamps, and retrieval explanations while retaining the implemented persistent session flow.
 6. **Build Knowledge and Compare:** browse concepts/claims/themes, inspect relationships, compare sources, and show position changes over time.
 7. **Add user judgment:** implement the full knowledge-state vocabulary and separate notes, goals, actions, and conclusions.
 8. **Build monitoring feedback:** background sync/processing progress, completion/failure notices, new-content summaries, and review counts.
@@ -163,11 +166,11 @@ All Ask content and statistics are currently mock data and must not be treated a
 
 At this reconciliation point:
 
-- The client test suite passes: **35 tests**.
+- The client test suite passes: **41 tests**.
 - The Angular production build passes.
-- The production bundle is approximately **396.95 kB raw** and **100.50 kB estimated transfer** at the latest verification.
+- The production bundle is approximately **402.38 kB raw** and **101.58 kB estimated transfer** at the latest verification.
 - The Sources page stylesheet is below the configured 12 kB warning threshold; the maximum style error limit remains 16 kB.
-- Tests cover the API service and Sources interactions, including inventory loading, latest-content refresh, refresh failure preservation, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, successful removal, and failure preservation.
+- Tests cover conversation API calls, Recent loading, active-session restoration, turn saving, Recent reordering, and the New chat state boundary, plus Sources interactions including inventory loading, latest-content refresh, failure preservation, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, and successful removal.
 
 ## Change history
 
@@ -176,6 +179,7 @@ At this reconciliation point:
 | 24 November 2026 | Reconciled all five shared LENS documents with the current Angular client; documented the application shell, mock Ask experience, Sources integration, inventory states, transcript submission, retry, and content-version feedback. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Ask retrieval, remaining product routes, automatic transcripts, persisted creator edits, review, user knowledge, Life, settings, and ownership controls remain future work. | All 28 client tests and the Angular production build passed. Documentation consistency check passed. |
 | 24 November 2026 | Added a Remove source action and confirmation modal. Cancel/close preserves the source; confirmation calls the deletion API, removes the source from the library, and clears selected content state. Failed deletion leaves the source visible and shows a retryable error. | Confirmed source deletion is implemented. Export, backup, full-account deletion, and deletion coverage for future knowledge entities remain future work. | All 32 client tests passed; the production build and documentation consistency checks passed. |
 | 24 November 2026 | Added Fetch latest beside the selected source controls. It refreshes the saved source, reloads its inventory and count, blocks overlapping refreshes, and reports new-content or already-current outcomes. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled refresh and non-channel source support remain future work. | All 35 client tests passed; server deduplication coverage and the Angular production build passed. |
+| 24 November 2026 | Replaced the illustrative Recent list with locally persisted Ask sessions. The first question creates a session, follow-ups append to the same context, selecting Recent restores the full conversation, and New chat starts a separate context on the next question. | Ask session persistence is implemented. The answer payload remains mock data; retrieval, grounded synthesis, and conversation management controls remain future work. | All 41 client tests, all 36 server tests, and the Angular production build passed. |
 
 ## Source documents reconciled
 

@@ -74,8 +74,9 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 
 | Requirement from the shared documents | Status | Current server behavior | Remaining work |
 | --- | --- | --- | --- |
-| Retrieval-first Ask service | **Not implemented** | There is no query, retrieval, ranking, or answer API. | Implement local retrieval, intent parsing, scoped context assembly, and cited synthesis. |
-| Ask modes: quick, deep, compare, source-only, evidence, timeline, conflicts, decision support | **Not implemented** | No server support exists. | Add explicit query modes and mode-specific response contracts. |
+| Persist and resume Ask conversations | **Implemented** | The local conversation store creates a session from the first question, appends later question/answer turns to that session, updates its recent timestamp, lists the 30 most recently updated sessions, and restores the full ordered context after a restart. | Add rename, delete, search, pagination, and retention controls when required. |
+| Retrieval-first Ask service | **Not implemented** | The server persists Ask session history, but it does not query, retrieve, rank, or synthesize knowledge. | Implement local retrieval, intent parsing, scoped context assembly, and cited synthesis, then generate answers on the server rather than accepting the current client mock payload. |
+| Ask modes: quick, deep, compare, source-only, evidence, timeline, conflicts, decision support | **Not implemented** | Conversation turns retain the selected `all`, `related`, or `deep` presentation mode, but no mode changes server-side retrieval or synthesis. | Add explicit query modes and mode-specific response contracts. |
 | Explain “Why am I seeing this?” | **Not implemented** | No retrieval trace is available. | Return source, match reason, ranking signal, and provenance with each answer item. |
 | Review queue | **Not implemented** | `needs-review` exists as a video status only; there is no ReviewItem entity or queue API. | Add review reasons, priority, decisions, and audit history. |
 | User knowledge states | **Not implemented** | No UserKnowledge entity exists. | Add the specified states: already know, know/do, know/not consistently apply, new, irrelevant, disagree, explore, and remember. |
@@ -109,8 +110,11 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | `GET /api/sources/:sourceKey/videos` | Lists a source's discovered videos, current version, processed time, and source-statement count. |
 | `PATCH /api/sources/:sourceKey/videos/:videoId/status` | Applies the allowed manual transitions to `needs-review` or `skipped`. |
 | `POST /api/sources/:sourceKey/videos/:videoId/process` | Validates a supplied transcript, runs the processing adapter, and creates or reuses a content version. |
+| `GET /api/conversations` | Lists up to 30 Ask sessions in most-recently-updated order with titles and turn counts. |
+| `GET /api/conversations/:conversationId` | Restores one Ask session with all question/answer turns in chronological order. |
+| `POST /api/conversations/turns` | Creates a session for a first turn or appends a validated turn to an existing session. |
 
-The process request is synchronous. There is currently no job-status, processing-history, content-version-history, claim, search, Ask, review, export, or settings endpoint.
+The process request is synchronous. Conversation endpoints persist the current client-generated Ask payload; there is currently no job-status, processing-history, content-version-history, claim, search/retrieval, generated-answer, review, export, or settings endpoint.
 
 ### Persisted data
 
@@ -120,6 +124,8 @@ The process request is synchronous. There is currently no job-status, processing
 | `youtube_videos` | Stable YouTube ID, source ownership, metadata, workflow status, and current content-version reference. |
 | `video_processing_attempts` | Processing ownership, state, timing, safe error, and content-version reference. |
 | `content_versions` | Immutable content hash, adapter/provider, processor version, serialized source statements, and creation state. |
+| `conversations` | Local Ask session identity, first-question title, and created/updated timestamps. |
+| `conversation_turns` | Ordered questions, selected presentation modes, serialized client-generated answers, and timestamps for each session. |
 
 The architecture documents also call for Creator, ContentItem, Segment, Claim, Concept, SharedTheme, Relationship, UserKnowledge, PersonalNote, Goal, Action, Conclusion, Provenance, ReviewItem, LifeEvent, and richer ProcessingLog models. Those normalized entities are not yet present.
 
@@ -147,7 +153,8 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 - Processing runs inside the request instead of a durable background queue.
 - Content-version and attempt histories are stored but not exposed through public API routes.
 - The SQLite result payload is serialized JSON; normalized Claim, Segment, Provenance, Concept, and Relationship tables are still needed.
-- There is no search index, embedding store, knowledge graph, Ask service, or retrieval trace.
+- Ask conversation history is local and persistent, but the stored answers are still client-generated mock content; there is no search index, embedding store, knowledge graph, retrieval service, grounded synthesis, or retrieval trace.
+- Conversation rename, delete, search, pagination beyond the 30-item Recent list, export, and configurable retention are not implemented.
 - There is no review queue, user knowledge state, personal history, external research store, or Life data layer.
 - There is no authentication, per-user boundary, restricted CORS policy, export service, full-account deletion, backup, monitoring dashboard, or notification system.
 - The service URL/port and operational configuration are still development-oriented.
@@ -160,7 +167,7 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 4. **Implement semantic processing:** topic segmentation, original/normalized claim pairs, context, evidence type, perspective, confidence, ambiguity, and conservative verification.
 5. **Compare new knowledge:** retrieve relevant prior claims and classify repeat, reinforcement, refinement, new perspective, contradiction, and new concept.
 6. **Build review workflows:** queue uncertain identity, metadata, claims, conflicts, missing evidence, and failed content for explicit user decisions.
-7. **Implement Ask:** intent parsing, local retrieval, query modes, cited synthesis, source-only responses, comparison, timelines, conflict views, and “Why am I seeing this?” traces.
+7. **Implement Ask retrieval:** generate answers from local knowledge with intent parsing, query modes, cited synthesis, source-only responses, comparison, timelines, conflict views, and “Why am I seeing this?” traces while retaining the implemented session history.
 8. **Add personal knowledge:** user knowledge states, notes, goals, actions, conclusions, and versioned user history in separate tables.
 9. **Add background operation:** durable queue, worker leases, scheduled source monitoring, notifications, retry policies, and observability.
 10. **Complete data ownership:** extend source deletion to future knowledge entities, then add Markdown/JSON export, full-account deletion, backup/restore, optional Google Drive backup, secure secrets, and production access controls.
@@ -170,9 +177,9 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 
 At this reconciliation point:
 
-- The server test suite passes: **34 tests**.
-- Tests cover source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, persistence, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
-- The default SQLite file is `server/data/youtube-sync.sqlite`; runtime data is excluded from version control.
+- The server test suite passes: **36 tests**.
+- Tests cover conversation creation, multi-turn append, recent-session deduplication, restart persistence, and rejection of unknown sessions, plus source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
+- The default SQLite files are `server/data/youtube-sync.sqlite` and `server/data/lens-conversations.sqlite`; runtime data is excluded from version control.
 
 ## Change history
 
@@ -181,6 +188,7 @@ At this reconciliation point:
 | 24 November 2026 | Reconciled all five shared LENS documents with the current server; documented source ingestion, SQLite inventory, transcript processing, content versioning, retry, ownership, and stale-attempt recovery. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Automatic transcript acquisition, semantic knowledge extraction, retrieval, review, personal knowledge, background monitoring, export, and production access controls remain future work. | Server build and all 32 server tests passed. Documentation consistency check passed. |
 | 24 November 2026 | Added permanent source deletion through `DELETE /api/sources/:sourceKey`. The deletion transaction removes the source account, owned videos, processing attempts, and content versions while preserving unrelated sources. | Source-level deletion is implemented. Future source-owned knowledge tables must join the same transaction; export, backup, retention, and full-account deletion remain future work. | Server build and all 33 server tests passed, including associated-data deletion and cross-source isolation. |
 | 24 November 2026 | Added `POST /api/sources/:sourceKey/sync` for manually fetching the latest content from a saved YouTube channel. It uses the stored canonical channel identity and stops at the first known stable YouTube video ID. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled monitoring and playlist/direct-video refresh remain future work. | Server build and all 34 server tests passed, including new-before-known discovery and repeated-refresh duplicate prevention. |
+| 24 November 2026 | Added local Ask conversation storage and APIs. A first turn creates a titled session, later turns append to the same context, Recent is ordered by the updated timestamp, and full ordered history survives server restart. | Ask session persistence is implemented. Answers remain client-generated mock data; retrieval, grounded synthesis, rename/delete/search, and retention controls remain future work. | Server build and all 36 server tests passed, including multi-turn append, recent-session behavior, restart persistence, and unknown-session rejection. |
 
 ## Source documents reconciled
 

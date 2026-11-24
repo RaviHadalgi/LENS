@@ -2,142 +2,117 @@
   class="ask-page"
   [class.conversation]="hasConversation"
 >
-  @if (!hasConversation) {
-    <div class="ask-intro">
-      <div class="lens-symbol">L</div>
+  @if (loadingConversation) {
+    <div class="conversation-state" role="status">Loading conversation…</div>
+  } @else {
+    @if (!hasConversation) {
+      <div class="ask-intro">
+        <div class="lens-symbol">L</div>
 
-      <h1>
-        What do you need right now?
-      </h1>
+        <h1>What do you need right now?</h1>
 
-      <p>
-        Ask about a topic, compare perspectives, or explore
-        something you've already learned.
-      </p>
-    </div>
-  }
-
-  @if (hasConversation) {
-    <div class="conversation-header">
-      <div class="lens-symbol small">
-        L
+        <p>
+          Ask about a topic, compare perspectives, or explore something you've already learned.
+        </p>
       </div>
+    }
 
-      <div>
-        <div class="conversation-title">
-          {{ submittedQuestion }}
+    @for (turn of turns; track turn.id) {
+      <section class="conversation-turn">
+        <div class="conversation-header">
+          <div class="lens-symbol small">L</div>
+
+          <div>
+            <div class="conversation-title">{{ turn.question }}</div>
+
+            <div class="conversation-meta">
+              {{
+                turn.mode === 'all'
+                  ? 'All sources'
+                  : turn.mode === 'related'
+                    ? 'Related knowledge'
+                    : 'Deep analysis'
+              }}
+            </div>
+          </div>
         </div>
 
-        <div class="conversation-meta">
-          {{
-            selectedMode === 'all'
-              ? 'All sources'
-              : selectedMode === 'related'
-                ? 'Related knowledge'
-                : 'Deep analysis'
-          }}
-        </div>
-      </div>
-    </div>
+        <article class="answer-card">
+          <div class="answer-label">LENS synthesis</div>
 
-    <article class="answer-card">
-      <div class="answer-label">
-        LENS synthesis
-      </div>
+          <p class="answer-summary">{{ turn.answer.summary }}</p>
 
-      <p class="answer-summary">
-        {{ answer.summary }}
-      </p>
+          <div class="answer-section">
+            <div class="section-title">Perspectives</div>
 
-      <div class="answer-section">
-        <div class="section-title">
-          Perspectives
-        </div>
+            @for (source of turn.answer.sources; track source.creator) {
+              <app-source-perspective-card [source]="source" />
+            }
+          </div>
 
-        @for (
-          source of answer.sources;
-          track source.creator
-        ) {
-          <app-source-perspective-card
-            [source]="source"
+          <div class="answer-columns">
+            <section class="insight-panel">
+              <div class="section-title">Common ground</div>
+              <p>{{ turn.answer.commonGround }}</p>
+            </section>
+
+            <section class="insight-panel">
+              <div class="section-title">Differences</div>
+              <p>{{ turn.answer.differences }}</p>
+            </section>
+          </div>
+
+          <div class="answer-footer">
+            <div class="stats">
+              <app-lens-badge tone="neutral">
+                {{ turn.answer.stats.sources }} sources
+              </app-lens-badge>
+
+              <app-lens-badge tone="neutral">
+                {{ turn.answer.stats.knowledgeItems }} knowledge items
+              </app-lens-badge>
+
+              <app-lens-badge tone="neutral">
+                {{ turn.answer.stats.repeatedFiltered }} repeated filtered
+              </app-lens-badge>
+
+              <app-lens-badge tone="info">
+                {{ turn.answer.stats.newConnections }} new connections
+              </app-lens-badge>
+            </div>
+
+            <button class="why-button" type="button">Why am I seeing this?</button>
+          </div>
+        </article>
+      </section>
+    }
+
+    @if (conversationError) {
+      <p class="conversation-error" role="alert">{{ conversationError }}</p>
+    }
+
+    <app-ask-input
+      [value]="question"
+      [selectedMode]="selectedMode"
+      (valueChange)="question = $event"
+      (modeChange)="setMode($event)"
+      (submitted)="ask()"
+    />
+
+    @if (savingConversation) {
+      <p class="conversation-saving" role="status">Saving this conversation…</p>
+    }
+
+    @if (!hasConversation) {
+      <div class="suggestion-grid">
+        @for (suggestion of suggestions; track suggestion.title) {
+          <app-suggestion-card
+            [title]="suggestion.title"
+            [description]="suggestion.description"
+            (selected)="useSuggestion(suggestion.title)"
           />
         }
       </div>
-
-      <div class="answer-columns">
-        <section class="insight-panel">
-          <div class="section-title">
-            Common ground
-          </div>
-
-          <p>
-            {{ answer.commonGround }}
-          </p>
-        </section>
-
-        <section class="insight-panel">
-          <div class="section-title">
-            Differences
-          </div>
-
-          <p>
-            {{ answer.differences }}
-          </p>
-        </section>
-      </div>
-
-      <div class="answer-footer">
-        <div class="stats">
-          <app-lens-badge tone="neutral">
-            {{ answer.stats.sources }} sources
-          </app-lens-badge>
-
-          <app-lens-badge tone="neutral">
-            {{ answer.stats.knowledgeItems }}
-            knowledge items
-          </app-lens-badge>
-
-          <app-lens-badge tone="neutral">
-            {{ answer.stats.repeatedFiltered }}
-            repeated filtered
-          </app-lens-badge>
-
-          <app-lens-badge tone="info">
-            {{ answer.stats.newConnections }}
-            new connections
-          </app-lens-badge>
-        </div>
-
-        <button
-          class="why-button"
-          type="button"
-        >
-          Why am I seeing this?
-        </button>
-      </div>
-    </article>
-  }
-
-  <app-ask-input
-    [value]="question"
-    [selectedMode]="selectedMode"
-    (valueChange)="question = $event"
-    (modeChange)="setMode($event)"
-    (submitted)="ask()"
-  />
-
-  @if (!hasConversation) {
-    <div class="suggestion-grid">
-      @for (
-        suggestion of suggestions;
-        track suggestion.title
-      ) {
-        <app-suggestion-card
-          [title]="suggestion.title"
-          [description]="suggestion.description"
-          (selected)="useSuggestion(suggestion.title)"
-        />
-      }
-    </div>
+    }
   }
 </section>

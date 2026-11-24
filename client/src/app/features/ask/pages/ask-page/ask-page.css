@@ -54,6 +54,35 @@
 
 /* Conversation */
 
+.conversation-turn {
+  margin-bottom: 30px;
+}
+
+.conversation-turn + .conversation-turn {
+  padding-top: 8px;
+  border-top: 1px solid #edf0f3;
+}
+
+.conversation-state {
+  padding: 80px 20px;
+  color: #6f7885;
+  text-align: center;
+}
+
+.conversation-error,
+.conversation-saving {
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.conversation-error {
+  color: #963c3c;
+}
+
+.conversation-saving {
+  color: #6f7885;
+}
+
 .conversation-header {
   display: flex;
   align-items: center;

@@ -31,6 +31,92 @@ describe('LensApiService', () => {
     expect(service).toBeTruthy();
   });
 
+  it('lists recent conversations', () => {
+    service.listConversations().subscribe((result) => {
+      expect(result.conversations[0]?.title).toBe('Saved conversation');
+    });
+
+    const request = httpMock.expectOne('http://localhost:3000/api/conversations');
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      conversations: [{
+        id: '4c3ff1b7-2ed7-4e35-bd10-736f1d05ca6c',
+        title: 'Saved conversation',
+        createdAt: '2026-11-24T00:00:00.000Z',
+        updatedAt: '2026-11-24T00:00:00.000Z',
+        turnCount: 1,
+      }],
+    });
+  });
+
+  it('loads a saved conversation with its context', () => {
+    const conversationId = '4c3ff1b7-2ed7-4e35-bd10-736f1d05ca6c';
+
+    service.getConversation(conversationId).subscribe((result) => {
+      expect(result.conversation.turns).toHaveLength(1);
+    });
+
+    const request = httpMock.expectOne(
+      `http://localhost:3000/api/conversations/${conversationId}`,
+    );
+    expect(request.request.method).toBe('GET');
+    request.flush({
+      conversation: {
+        id: conversationId,
+        title: 'Saved conversation',
+        createdAt: '2026-11-24T00:00:00.000Z',
+        updatedAt: '2026-11-24T00:00:00.000Z',
+        turnCount: 1,
+        turns: [{
+          id: 1,
+          question: 'Saved conversation',
+          mode: 'all',
+          answer: {
+            summary: 'Saved answer', sources: [], commonGround: '', differences: '',
+            stats: { sources: 0, knowledgeItems: 0, repeatedFiltered: 0, newConnections: 0 },
+          },
+          createdAt: '2026-11-24T00:00:00.000Z',
+        }],
+      },
+    });
+  });
+
+  it('creates or appends a conversation turn', () => {
+    const answer = {
+      summary: 'Saved answer', sources: [], commonGround: '', differences: '',
+      stats: { sources: 0, knowledgeItems: 0, repeatedFiltered: 0, newConnections: 0 },
+    };
+
+    service.saveConversationTurn({
+      conversationId: null,
+      question: 'Start a new context',
+      mode: 'deep',
+      answer,
+    }).subscribe((result) => {
+      expect(result.created).toBe(true);
+    });
+
+    const request = httpMock.expectOne('http://localhost:3000/api/conversations/turns');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      conversationId: null,
+      question: 'Start a new context',
+      mode: 'deep',
+      answer,
+    });
+    request.flush({
+      created: true,
+      conversation: {
+        id: '4c3ff1b7-2ed7-4e35-bd10-736f1d05ca6c',
+        title: 'Start a new context',
+        createdAt: '2026-11-24T00:00:00.000Z',
+        updatedAt: '2026-11-24T00:00:00.000Z',
+        turnCount: 1,
+        turns: [],
+      },
+    });
+  });
+
   it('should analyze a source URL', () => {
     const response: AnalyzeSourceResponse = {
       platform: 'youtube',

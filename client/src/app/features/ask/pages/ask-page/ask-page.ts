@@ -1,4 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
+import { distinctUntilChanged, map } from 'rxjs';
 
 import {
   AskInput,
@@ -6,26 +9,18 @@ import {
 } from '../../components/ask-input/ask-input';
 
 import {
-  LensSource,
   SourcePerspectiveCard,
 } from '../../components/source-perspective-card/source-perspective-card';
 
 import { SuggestionCard } from '../../components/suggestion-card/suggestion-card';
-
 import { LensBadge } from '../../../../shared/components/lens-badge/lens-badge';
+import { ConversationStateService } from '../../../../core/services/conversation-state.service';
+import type {
+  ConversationAnswer,
+  ConversationTurn,
+} from '../../../../core/services/lens-api.service';
 
-export interface LensAnswer {
-  summary: string;
-  sources: LensSource[];
-  commonGround: string;
-  differences: string;
-  stats: {
-    sources: number;
-    knowledgeItems: number;
-    repeatedFiltered: number;
-    newConnections: number;
-  };
-}
+export type LensAnswer = ConversationAnswer;
 
 @Component({
   selector: 'app-ask-page',
@@ -38,11 +33,19 @@ export interface LensAnswer {
   templateUrl: './ask-page.html',
   styleUrl: './ask-page.css',
 })
-export class AskPage {
+export class AskPage implements OnInit {
+  private readonly conversationState = inject(ConversationStateService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
+
   question = '';
-  submittedQuestion = '';
   selectedMode: AnalysisMode = 'all';
-  hasConversation = false;
+  turns: ConversationTurn[] = [];
+  activeConversationId: string | null = null;
+  loadingConversation = false;
+  savingConversation = false;
+  conversationError = '';
 
   readonly suggestions = [
     {
@@ -63,7 +66,7 @@ export class AskPage {
     },
   ];
 
-  answer: LensAnswer = {
+  private readonly baseAnswer: LensAnswer = {
     summary:
       'Your saved sources connect grooming with personal presentation, self-maintenance and social perception, but they approach the subject from different perspectives.',
     sources: [
@@ -104,21 +107,72 @@ export class AskPage {
     },
   };
 
+  get hasConversation(): boolean {
+    return this.turns.length > 0;
+  }
+
+  ngOnInit(): void {
+    this.conversationState.activeConversation$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((conversation) => {
+        this.activeConversationId = conversation?.id ?? null;
+        this.turns = conversation?.turns ?? [];
+
+        if (conversation?.turns.length) {
+          this.selectedMode = conversation.turns.at(-1)?.mode ?? 'all';
+        } else {
+          this.question = '';
+          this.selectedMode = 'all';
+        }
+      });
+
+    this.route.queryParamMap
+      .pipe(
+        map((params) => params.get('chat')),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((conversationId) => {
+        this.loadConversationFromRoute(conversationId);
+      });
+  }
+
   ask(): void {
     const cleaned = this.question.trim();
 
-    if (!cleaned) {
+    if (!cleaned || this.savingConversation) {
       return;
     }
 
-    this.submittedQuestion = cleaned;
-    this.question = '';
-    this.hasConversation = true;
+    const previousConversationId = this.activeConversationId;
+    const answer = this.buildMockAnswer(cleaned, this.selectedMode);
+    this.savingConversation = true;
+    this.conversationError = '';
 
-    this.answer = this.buildMockAnswer(
-      cleaned,
-      this.selectedMode,
-    );
+    this.conversationState.saveTurn({
+      conversationId: previousConversationId,
+      question: cleaned,
+      mode: this.selectedMode,
+      answer,
+    }).subscribe({
+      next: ({ conversation }) => {
+        this.question = '';
+        this.savingConversation = false;
+
+        if (!previousConversationId) {
+          void this.router.navigate(['/ask'], {
+            queryParams: { chat: conversation.id },
+            replaceUrl: true,
+          });
+        }
+      },
+      error: (error) => {
+        console.error('Failed to save conversation:', error);
+        this.savingConversation = false;
+        this.conversationError =
+          error?.error?.message ?? 'LENS could not save this conversation. Please try again.';
+      },
+    });
   }
 
   setMode(mode: AnalysisMode): void {
@@ -129,11 +183,35 @@ export class AskPage {
     this.question = suggestion;
   }
 
-  newChat(): void {
-    this.question = '';
-    this.submittedQuestion = '';
-    this.hasConversation = false;
-    this.selectedMode = 'all';
+  private loadConversationFromRoute(conversationId: string | null): void {
+    this.conversationError = '';
+
+    if (!conversationId) {
+      this.loadingConversation = false;
+      this.conversationState.startNewChat();
+      return;
+    }
+
+    if (this.conversationState.activeConversation?.id === conversationId) {
+      this.loadingConversation = false;
+      return;
+    }
+
+    this.loadingConversation = true;
+    this.conversationState.loadConversation(conversationId).subscribe({
+      next: () => {
+        this.loadingConversation = false;
+      },
+      error: (error) => {
+        console.error('Failed to load conversation:', error);
+        this.loadingConversation = false;
+        this.conversationError =
+          error?.status === 404
+            ? 'This conversation is no longer available.'
+            : 'LENS could not load this conversation.';
+        this.conversationState.startNewChat();
+      },
+    });
   }
 
   private buildMockAnswer(
@@ -144,7 +222,7 @@ export class AskPage {
 
     if (lower.includes('groom')) {
       return {
-        ...this.answer,
+        ...this.baseAnswer,
         summary:
           mode === 'deep'
             ? 'Across the saved material, grooming appears in several connected contexts: physical presentation, hygiene, female perception, self-respect and social signaling. The sources overlap on self-maintenance but assign different meanings to it.'
@@ -155,7 +233,7 @@ export class AskPage {
     }
 
     return {
-      ...this.answer,
+      ...this.baseAnswer,
       summary:
         `I found related material for "${query}". ` +
         'This is currently a mock LENS response; the real retrieval engine will use your local knowledge base.',

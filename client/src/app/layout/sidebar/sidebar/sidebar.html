@@ -4,7 +4,7 @@
     <span class="brand-name">LENS</span>
   </div>
 
-  <button class="new-chat-button" type="button">
+  <button class="new-chat-button" type="button" (click)="newChat()">
     <span class="plus">+</span>
     <span>New chat</span>
   </button>
@@ -72,10 +72,19 @@
     <div class="nav-section recent-section">
       <div class="nav-label">Recent</div>
 
-      @for (chat of recentChats; track chat) {
-        <button class="recent-item" type="button">
-          {{ chat }}
+      @for (chat of recentChats; track chat.id) {
+        <button
+          class="recent-item"
+          type="button"
+          [class.active]="activeConversationId === chat.id"
+          [attr.aria-current]="activeConversationId === chat.id ? 'page' : null"
+          [title]="chat.title"
+          (click)="openChat(chat.id)"
+        >
+          {{ chat.title }}
         </button>
+      } @empty {
+        <p class="recent-empty">Your conversations will appear here.</p>
       }
     </div>
   </nav>

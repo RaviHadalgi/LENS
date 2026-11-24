@@ -4,6 +4,47 @@ import { Observable } from 'rxjs';
 
 export type SourceType = 'channel' | 'playlist' | 'video';
 
+export type ConversationMode = 'all' | 'related' | 'deep';
+
+export interface ConversationAnswer {
+  summary: string;
+  sources: Array<{
+    creator: string;
+    perspective: string;
+    context: string;
+    statement: string;
+    timestamp: string;
+  }>;
+  commonGround: string;
+  differences: string;
+  stats: {
+    sources: number;
+    knowledgeItems: number;
+    repeatedFiltered: number;
+    newConnections: number;
+  };
+}
+
+export interface ConversationTurn {
+  id: number;
+  question: string;
+  mode: ConversationMode;
+  answer: ConversationAnswer;
+  createdAt: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  turnCount: number;
+}
+
+export interface LensConversation extends ConversationSummary {
+  turns: ConversationTurn[];
+}
+
 export interface AnalyzeSourceResponse {
   platform: 'youtube' | 'unknown';
   type: SourceType | 'unknown';
@@ -146,6 +187,30 @@ export class LensApiService {
   private readonly http = inject(HttpClient);
 
   private readonly baseUrl = 'http://localhost:3000/api';
+
+  listConversations(): Observable<{ conversations: ConversationSummary[] }> {
+    return this.http.get<{ conversations: ConversationSummary[] }>(
+      `${this.baseUrl}/conversations`,
+    );
+  }
+
+  getConversation(conversationId: string): Observable<{ conversation: LensConversation }> {
+    return this.http.get<{ conversation: LensConversation }>(
+      `${this.baseUrl}/conversations/${encodeURIComponent(conversationId)}`,
+    );
+  }
+
+  saveConversationTurn(input: {
+    conversationId: string | null;
+    question: string;
+    mode: ConversationMode;
+    answer: ConversationAnswer;
+  }): Observable<{ conversation: LensConversation; created: boolean }> {
+    return this.http.post<{ conversation: LensConversation; created: boolean }>(
+      `${this.baseUrl}/conversations/turns`,
+      input,
+    );
+  }
 
   analyzeSource(url: string): Observable<AnalyzeSourceResponse> {
     return this.http.post<AnalyzeSourceResponse>(`${this.baseUrl}/sources/analyze`, { url });
