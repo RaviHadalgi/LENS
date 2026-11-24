@@ -62,7 +62,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Requirement from the shared documents | Status | Current client behavior | Remaining work |
 | --- | --- | --- | --- |
 | Natural-language Ask interface | **Partial** | Ask input, submission behavior, Enter/Shift+Enter handling, suggestions, multi-turn conversation layout, and answer cards are implemented. Each submitted turn is saved to the active local session, but responses are generated from local mock data. | Connect Ask to a real server retrieval and synthesis API. |
-| Persist and resume Ask conversations | **Implemented** | The first question creates a session titled from that question. Follow-ups remain in the same context, update its position in Recent, and survive reload/restart. Selecting Recent restores every ordered turn; New chat clears the active context so the next question creates a separate session. | Add conversation rename, delete, search, pagination, and retention controls when required. |
+| Persist, resume, and delete Ask conversations | **Implemented** | The first question creates a session titled from that question. Follow-ups remain in the same context, update its position in Recent, and survive reload/restart. Selecting Recent restores every ordered turn. New chat immediately clears the page and invalidates older in-flight work so the next question creates a separate session. Each Recent row has a confirmed Delete action; deleting the open session returns Ask to a clean new chat. | Add conversation rename, search, pagination, and retention controls when required. |
 | Quick/current, related knowledge, and deep analysis levels | **Partial** | The interface exposes All, Related, and Deep modes and changes mock copy. | Define the final names/contracts and send mode-specific queries to the server. |
 | Compare creator perspectives | **Partial** | The mock answer presents separate source-perspective cards, common ground, differences, and example timestamps. | Populate these from saved claims and implement a dedicated Compare workflow. |
 | Filter repetition and surface new connections | **Partial** | The mock answer displays example counts for repeated items and new connections. | Compute and explain these values from real novelty classifications. |
@@ -128,7 +128,8 @@ The root route redirects to `/ask`, and unknown routes also redirect to `/ask`.
 - Summary statistics and a visual evidence/explanation affordance.
 - Persistent multi-turn context for follow-up questions.
 - Recent sessions loaded in most-recently-updated order; choosing one restores its full context.
-- New chat clears the active session so the next question starts a separate context.
+- New chat clears the active session and URL immediately; late load/save responses cannot restore the previous context.
+- Each Recent session has a Delete action with a permanent-deletion confirmation. Confirming removes the session and all messages; cancel leaves it unchanged.
 
 Ask questions, modes, answers, and ordering are stored by the local server. Answer content and statistics are currently mock data and must not be treated as retrieved LENS knowledge.
 
@@ -145,7 +146,7 @@ Ask questions, modes, answers, and ordering are stored by the local server. Answ
 - There is no user knowledge state, personal note, goal, action, conclusion, external research, or Life interface.
 - There are no background progress updates, notification center, offline/reconnect treatment, or scheduled monitoring controls.
 - The API base URL is hard-coded to `http://localhost:3000/api` instead of using environment configuration.
-- Conversation rename, delete, search, pagination beyond the 30-item Recent list, and retention controls are not implemented.
+- Conversation rename, search, pagination beyond the 30-item Recent list, and retention controls are not implemented.
 - Accessibility, keyboard coverage, and responsive behavior need a dedicated audit after the full workflows exist.
 
 ## Future enhancement order
@@ -166,11 +167,11 @@ Ask questions, modes, answers, and ordering are stored by the local server. Answ
 
 At this reconciliation point:
 
-- The client test suite passes: **41 tests**.
+- The client test suite passes: **42 tests**.
 - The Angular production build passes.
-- The production bundle is approximately **402.38 kB raw** and **101.58 kB estimated transfer** at the latest verification.
+- The production bundle is approximately **406.93 kB raw** and **102.39 kB estimated transfer** at the latest verification.
 - The Sources page stylesheet is below the configured 12 kB warning threshold; the maximum style error limit remains 16 kB.
-- Tests cover conversation API calls, Recent loading, active-session restoration, turn saving, Recent reordering, and the New chat state boundary, plus Sources interactions including inventory loading, latest-content refresh, failure preservation, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, and successful removal.
+- Tests cover conversation API calls including deletion, Recent loading, active-session restoration, turn saving, Recent reordering, deletion state cleanup, and rejection of stale load/save responses after New chat, plus Sources interactions including inventory loading, latest-content refresh, failure preservation, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, and successful removal.
 
 ## Change history
 
@@ -180,6 +181,7 @@ At this reconciliation point:
 | 24 November 2026 | Added a Remove source action and confirmation modal. Cancel/close preserves the source; confirmation calls the deletion API, removes the source from the library, and clears selected content state. Failed deletion leaves the source visible and shows a retryable error. | Confirmed source deletion is implemented. Export, backup, full-account deletion, and deletion coverage for future knowledge entities remain future work. | All 32 client tests passed; the production build and documentation consistency checks passed. |
 | 24 November 2026 | Added Fetch latest beside the selected source controls. It refreshes the saved source, reloads its inventory and count, blocks overlapping refreshes, and reports new-content or already-current outcomes. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled refresh and non-channel source support remain future work. | All 35 client tests passed; server deduplication coverage and the Angular production build passed. |
 | 24 November 2026 | Replaced the illustrative Recent list with locally persisted Ask sessions. The first question creates a session, follow-ups append to the same context, selecting Recent restores the full conversation, and New chat starts a separate context on the next question. | Ask session persistence is implemented. The answer payload remains mock data; retrieval, grounded synthesis, and conversation management controls remain future work. | All 41 client tests, all 36 server tests, and the Angular production build passed. |
+| 24 November 2026 | Added a Delete control to every Recent session with a confirmation dialog. Confirming removes the complete saved conversation; deleting the open session returns to a blank Ask page. New chat now hard-resets the Ask URL and ignores late load/save responses so the prior context cannot reappear. | Conversation deletion and reliable New chat isolation are implemented. Rename, search, pagination, retention controls, and grounded answer retrieval remain future work. | All 42 client tests, all 36 server tests, and the Angular production build passed. |
 
 ## Source documents reconciled
 

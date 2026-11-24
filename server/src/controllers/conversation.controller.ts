@@ -61,6 +61,25 @@ export async function getConversation(
   res.status(200).json({ conversation });
 }
 
+export async function deleteConversation(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const conversationId = req.params["conversationId"];
+
+  if (typeof conversationId !== "string" || !z.string().uuid().safeParse(conversationId).success) {
+    res.status(400).json({ status: "invalid", message: "A valid conversation ID is required." });
+    return;
+  }
+
+  if (!await conversationStore.deleteConversation(conversationId)) {
+    res.status(404).json({ status: "not-found", message: "Conversation not found." });
+    return;
+  }
+
+  res.status(204).send();
+}
+
 export async function appendConversationTurn(
   req: Request,
   res: Response,

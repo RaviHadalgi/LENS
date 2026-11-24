@@ -123,6 +123,9 @@ export class AskPage implements OnInit {
         } else {
           this.question = '';
           this.selectedMode = 'all';
+          this.conversationError = '';
+          this.loadingConversation = false;
+          this.savingConversation = false;
         }
       });
 
@@ -159,7 +162,10 @@ export class AskPage implements OnInit {
         this.question = '';
         this.savingConversation = false;
 
-        if (!previousConversationId) {
+        if (
+          !previousConversationId &&
+          this.conversationState.activeConversation?.id === conversation.id
+        ) {
           void this.router.navigate(['/ask'], {
             queryParams: { chat: conversation.id },
             replaceUrl: true,

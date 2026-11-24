@@ -81,7 +81,8 @@ describe('LensApiService', () => {
     });
   });
 
-  it('creates or appends a conversation turn', () => {
+  it('creates or appends a conversation turn and deletes a conversation', () => {
+    const conversationId = '4c3ff1b7-2ed7-4e35-bd10-736f1d05ca6c';
     const answer = {
       summary: 'Saved answer', sources: [], commonGround: '', differences: '',
       stats: { sources: 0, knowledgeItems: 0, repeatedFiltered: 0, newConnections: 0 },
@@ -107,7 +108,7 @@ describe('LensApiService', () => {
     request.flush({
       created: true,
       conversation: {
-        id: '4c3ff1b7-2ed7-4e35-bd10-736f1d05ca6c',
+        id: conversationId,
         title: 'Start a new context',
         createdAt: '2026-11-24T00:00:00.000Z',
         updatedAt: '2026-11-24T00:00:00.000Z',
@@ -115,6 +116,13 @@ describe('LensApiService', () => {
         turns: [],
       },
     });
+
+    service.deleteConversation(conversationId).subscribe();
+    const deleteRequest = httpMock.expectOne(
+      `http://localhost:3000/api/conversations/${conversationId}`,
+    );
+    expect(deleteRequest.request.method).toBe('DELETE');
+    deleteRequest.flush(null, { status: 204, statusText: 'No Content' });
   });
 
   it('should analyze a source URL', () => {

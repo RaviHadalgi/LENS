@@ -74,6 +74,11 @@ test("creates a conversation and appends later turns to the same context", async
     const persisted = await reopened.getConversation(created.conversation.id);
     assert.equal(persisted?.turnCount, 2);
     assert.equal(persisted?.turns[1]?.answer && (persisted.turns[1].answer as typeof answer).summary, "Follow-up answer");
+
+    assert.equal(await reopened.deleteConversation(created.conversation.id), true);
+    assert.equal(await reopened.getConversation(created.conversation.id), null);
+    assert.equal((await reopened.getConversation(second.conversation.id))?.turnCount, 1);
+    assert.equal(await reopened.deleteConversation(created.conversation.id), false);
     await reopened.close();
   } finally {
     await rm(directory, { recursive: true, force: true });

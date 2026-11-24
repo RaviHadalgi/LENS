@@ -200,6 +200,12 @@ export class LensApiService {
     );
   }
 
+  deleteConversation(conversationId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.baseUrl}/conversations/${encodeURIComponent(conversationId)}`,
+    );
+  }
+
   saveConversationTurn(input: {
     conversationId: string | null;
     question: string;

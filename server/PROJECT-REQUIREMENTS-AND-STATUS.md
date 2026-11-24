@@ -74,7 +74,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 
 | Requirement from the shared documents | Status | Current server behavior | Remaining work |
 | --- | --- | --- | --- |
-| Persist and resume Ask conversations | **Implemented** | The local conversation store creates a session from the first question, appends later question/answer turns to that session, updates its recent timestamp, lists the 30 most recently updated sessions, and restores the full ordered context after a restart. | Add rename, delete, search, pagination, and retention controls when required. |
+| Persist, resume, and delete Ask conversations | **Implemented** | The local conversation store creates a session from the first question, appends later question/answer turns to that session, updates its recent timestamp, lists the 30 most recently updated sessions, restores the full ordered context after a restart, and permanently deletes a selected session with all turns through SQLite cascade ownership. | Add rename, search, pagination, and retention controls when required. |
 | Retrieval-first Ask service | **Not implemented** | The server persists Ask session history, but it does not query, retrieve, rank, or synthesize knowledge. | Implement local retrieval, intent parsing, scoped context assembly, and cited synthesis, then generate answers on the server rather than accepting the current client mock payload. |
 | Ask modes: quick, deep, compare, source-only, evidence, timeline, conflicts, decision support | **Not implemented** | Conversation turns retain the selected `all`, `related`, or `deep` presentation mode, but no mode changes server-side retrieval or synthesis. | Add explicit query modes and mode-specific response contracts. |
 | Explain “Why am I seeing this?” | **Not implemented** | No retrieval trace is available. | Return source, match reason, ranking signal, and provenance with each answer item. |
@@ -113,6 +113,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | `GET /api/conversations` | Lists up to 30 Ask sessions in most-recently-updated order with titles and turn counts. |
 | `GET /api/conversations/:conversationId` | Restores one Ask session with all question/answer turns in chronological order. |
 | `POST /api/conversations/turns` | Creates a session for a first turn or appends a validated turn to an existing session. |
+| `DELETE /api/conversations/:conversationId` | Permanently deletes one Ask session and all of its saved turns; missing sessions return `404`. |
 
 The process request is synchronous. Conversation endpoints persist the current client-generated Ask payload; there is currently no job-status, processing-history, content-version-history, claim, search/retrieval, generated-answer, review, export, or settings endpoint.
 
@@ -154,7 +155,7 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 - Content-version and attempt histories are stored but not exposed through public API routes.
 - The SQLite result payload is serialized JSON; normalized Claim, Segment, Provenance, Concept, and Relationship tables are still needed.
 - Ask conversation history is local and persistent, but the stored answers are still client-generated mock content; there is no search index, embedding store, knowledge graph, retrieval service, grounded synthesis, or retrieval trace.
-- Conversation rename, delete, search, pagination beyond the 30-item Recent list, export, and configurable retention are not implemented.
+- Conversation rename, search, pagination beyond the 30-item Recent list, export, and configurable retention are not implemented.
 - There is no review queue, user knowledge state, personal history, external research store, or Life data layer.
 - There is no authentication, per-user boundary, restricted CORS policy, export service, full-account deletion, backup, monitoring dashboard, or notification system.
 - The service URL/port and operational configuration are still development-oriented.
@@ -178,7 +179,7 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 At this reconciliation point:
 
 - The server test suite passes: **36 tests**.
-- Tests cover conversation creation, multi-turn append, recent-session deduplication, restart persistence, and rejection of unknown sessions, plus source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
+- Tests cover conversation creation, multi-turn append, recent-session deduplication, restart persistence, complete conversation deletion with unrelated-session isolation, and rejection of unknown sessions, plus source analysis/sync foundations, latest-content refresh and repeated-refresh deduplication, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
 - The default SQLite files are `server/data/youtube-sync.sqlite` and `server/data/lens-conversations.sqlite`; runtime data is excluded from version control.
 
 ## Change history
@@ -189,6 +190,7 @@ At this reconciliation point:
 | 24 November 2026 | Added permanent source deletion through `DELETE /api/sources/:sourceKey`. The deletion transaction removes the source account, owned videos, processing attempts, and content versions while preserving unrelated sources. | Source-level deletion is implemented. Future source-owned knowledge tables must join the same transaction; export, backup, retention, and full-account deletion remain future work. | Server build and all 33 server tests passed, including associated-data deletion and cross-source isolation. |
 | 24 November 2026 | Added `POST /api/sources/:sourceKey/sync` for manually fetching the latest content from a saved YouTube channel. It uses the stored canonical channel identity and stops at the first known stable YouTube video ID. | Manual latest-content refresh is implemented for saved YouTube channels. Scheduled monitoring and playlist/direct-video refresh remain future work. | Server build and all 34 server tests passed, including new-before-known discovery and repeated-refresh duplicate prevention. |
 | 24 November 2026 | Added local Ask conversation storage and APIs. A first turn creates a titled session, later turns append to the same context, Recent is ordered by the updated timestamp, and full ordered history survives server restart. | Ask session persistence is implemented. Answers remain client-generated mock data; retrieval, grounded synthesis, rename/delete/search, and retention controls remain future work. | Server build and all 36 server tests passed, including multi-turn append, recent-session behavior, restart persistence, and unknown-session rejection. |
+| 24 November 2026 | Added `DELETE /api/conversations/:conversationId`. Deleting a conversation removes its complete turn history through the conversation foreign key while preserving every other session. | Ask conversation deletion is implemented. Rename, search, pagination, export, and configurable retention remain future work. | Server build and all 36 server tests passed, including complete deletion, repeat-delete handling, and unrelated-session isolation. |
 
 ## Source documents reconciled
 

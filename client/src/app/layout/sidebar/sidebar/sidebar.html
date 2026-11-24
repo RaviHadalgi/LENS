@@ -73,16 +73,32 @@
       <div class="nav-label">Recent</div>
 
       @for (chat of recentChats; track chat.id) {
-        <button
-          class="recent-item"
-          type="button"
+        <div
+          class="recent-row"
           [class.active]="activeConversationId === chat.id"
-          [attr.aria-current]="activeConversationId === chat.id ? 'page' : null"
-          [title]="chat.title"
-          (click)="openChat(chat.id)"
         >
-          {{ chat.title }}
-        </button>
+          <button
+            class="recent-item"
+            type="button"
+            [attr.aria-current]="activeConversationId === chat.id ? 'page' : null"
+            [title]="chat.title"
+            (click)="openChat(chat.id)"
+          >
+            {{ chat.title }}
+          </button>
+
+          <button
+            class="recent-delete"
+            type="button"
+            [attr.aria-label]="'Delete ' + chat.title"
+            [title]="'Delete ' + chat.title"
+            (click)="requestDeleteConversation(chat, $event)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" />
+            </svg>
+          </button>
+        </div>
       } @empty {
         <p class="recent-empty">Your conversations will appear here.</p>
       }
@@ -96,3 +112,42 @@
     </button>
   </div>
 </aside>
+
+<app-lens-modal
+  [open]="conversationPendingDeletion !== null"
+  title="Delete this conversation?"
+  description="This removes the conversation and every message saved in it."
+  [closeOnBackdrop]="!deletingConversation"
+  (closed)="cancelDeleteConversation()"
+>
+  @if (conversationPendingDeletion) {
+    <div class="delete-conversation-warning">
+      <strong>{{ conversationPendingDeletion.title }}</strong>
+      <p>This cannot be undone.</p>
+    </div>
+
+    @if (deleteConversationError) {
+      <p class="delete-conversation-error" role="alert">{{ deleteConversationError }}</p>
+    }
+  }
+
+  <div lens-modal-footer>
+    <app-lens-button
+      variant="secondary"
+      type="button"
+      [disabled]="deletingConversation"
+      (click)="cancelDeleteConversation()"
+    >
+      Cancel
+    </app-lens-button>
+
+    <app-lens-button
+      variant="danger"
+      type="button"
+      [loading]="deletingConversation"
+      (click)="confirmDeleteConversation()"
+    >
+      Delete conversation
+    </app-lens-button>
+  </div>
+</app-lens-modal>

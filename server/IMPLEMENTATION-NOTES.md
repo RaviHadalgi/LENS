@@ -128,3 +128,11 @@ Verification now includes all 36 server tests and all 41 client tests, plus the
 Angular production build. Conversation coverage checks first-turn creation,
 follow-up append, recent-list deduplication, persistence across reopen, unknown-session
 rejection, API integration, session restoration, and the New chat state boundary.
+
+Recent conversations can now be permanently deleted through
+`DELETE /api/conversations/:conversationId`. SQLite foreign-key cascade ownership
+removes every saved turn for that conversation and leaves other conversations
+unchanged. The client asks for confirmation before calling this endpoint. Deleting
+the open conversation also resets Ask to a clean new session. New chat now invalidates
+pending conversation loads and saves, so a late response cannot reactivate the
+previous context. Verification includes all 36 server tests and all 42 client tests.

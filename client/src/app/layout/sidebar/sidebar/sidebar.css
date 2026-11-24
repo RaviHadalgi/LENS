@@ -79,7 +79,8 @@
 }
 
 .nav-item,
-.recent-item {
+.recent-item,
+.recent-delete {
   width: 100%;
   border: 0;
   border-radius: 10px;
@@ -99,7 +100,7 @@
 }
 
 .nav-item:hover,
-.recent-item:hover {
+.recent-row:hover {
   background: #e7eaf0;
 }
 
@@ -115,8 +116,16 @@
   text-align: center;
 }
 
+.recent-row {
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+}
+
 .recent-item {
   display: block;
+  min-width: 0;
+  flex: 1;
   overflow: hidden;
   padding: 9px 12px;
   font-size: 13px;
@@ -126,10 +135,52 @@
   cursor: pointer;
 }
 
-.recent-item.active {
+.recent-row.active {
   background: #e3e7ee;
+}
+
+.recent-row.active .recent-item {
   color: #202834;
   font-weight: 600;
+}
+
+.recent-delete {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  flex: 0 0 32px;
+  place-items: center;
+  margin-right: 4px;
+  padding: 0;
+  color: #737c88;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.recent-delete svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.recent-row:hover .recent-delete,
+.recent-delete:focus-visible {
+  opacity: 1;
+}
+
+.recent-delete:hover {
+  background: #f8deda;
+  color: #b42318;
+}
+
+@media (hover: none) {
+  .recent-delete {
+    opacity: 1;
+  }
 }
 
 .recent-empty {
@@ -138,6 +189,31 @@
   color: #8a929d;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.delete-conversation-warning {
+  padding: 16px;
+  border: 1px solid #f2d1cd;
+  border-radius: 12px;
+  background: #fff8f7;
+  color: #3f2724;
+}
+
+.delete-conversation-warning strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.delete-conversation-warning p {
+  margin: 8px 0 0;
+  color: #74524d;
+  font-size: 13px;
+}
+
+.delete-conversation-error {
+  margin: 14px 0 0;
+  color: #b42318;
+  font-size: 13px;
 }
 
 .sidebar-footer {

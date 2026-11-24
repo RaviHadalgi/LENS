@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ConversationStateService } from './conversation-state.service';
@@ -28,6 +28,7 @@ describe('ConversationStateService', () => {
     listConversations: vi.fn(),
     getConversation: vi.fn(),
     saveConversationTurn: vi.fn(),
+    deleteConversation: vi.fn(),
   };
 
   let service: ConversationStateService;
@@ -36,6 +37,7 @@ describe('ConversationStateService', () => {
     apiMock.listConversations.mockReset();
     apiMock.getConversation.mockReset();
     apiMock.saveConversationTurn.mockReset();
+    apiMock.deleteConversation.mockReset();
 
     TestBed.configureTestingModule({
       providers: [
@@ -96,6 +98,40 @@ describe('ConversationStateService', () => {
     expect(recentIds).toEqual([conversation.id, olderConversation.id]);
 
     service.startNewChat();
+    expect(service.activeConversation).toBeNull();
+
+    apiMock.getConversation.mockReturnValue(of({ conversation }));
+    service.loadConversation(conversation.id).subscribe();
+    expect(service.activeConversation?.id).toBe(conversation.id);
+
+    apiMock.deleteConversation.mockReturnValue(of(void 0));
+    service.deleteConversation(conversation.id).subscribe();
+    expect(recentIds).toEqual([olderConversation.id]);
+    expect(service.activeConversation).toBeNull();
+  });
+
+  it('does not restore a stale load or save after New chat', () => {
+    const pendingLoad = new Subject<{ conversation: LensConversation }>();
+    apiMock.getConversation.mockReturnValue(pendingLoad);
+    service.loadConversation(conversation.id).subscribe();
+
+    service.startNewChat();
+    pendingLoad.next({ conversation });
+    pendingLoad.complete();
+    expect(service.activeConversation).toBeNull();
+
+    const pendingSave = new Subject<{ conversation: LensConversation; created: boolean }>();
+    apiMock.saveConversationTurn.mockReturnValue(pendingSave);
+    service.saveTurn({
+      conversationId: null,
+      question: conversation.title,
+      mode: 'all',
+      answer: conversation.turns[0]!.answer,
+    }).subscribe();
+
+    service.startNewChat();
+    pendingSave.next({ conversation, created: true });
+    pendingSave.complete();
     expect(service.activeConversation).toBeNull();
   });
 });

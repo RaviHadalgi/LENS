@@ -108,6 +108,14 @@ export class ConversationStore {
     };
   }
 
+  async deleteConversation(conversationId: string): Promise<boolean> {
+    const result = this.database()
+      .prepare("DELETE FROM conversations WHERE id = ?")
+      .run(conversationId);
+
+    return Number(result.changes) === 1;
+  }
+
   async appendTurn(input: AppendConversationTurnInput): Promise<{
     conversation: Conversation;
     created: boolean;
