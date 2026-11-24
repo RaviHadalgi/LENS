@@ -16,12 +16,14 @@ describe('SourcesPage', () => {
     listSourceVideos: vi.fn(),
     updateSourceVideoStatus: vi.fn(),
     processSourceVideo: vi.fn(),
+    deleteSource: vi.fn(),
   };
 
   beforeEach(async () => {
     apiMock.syncYouTubeChannel.mockReset();
     apiMock.listSourceVideos.mockReset();
     apiMock.processSourceVideo.mockReset();
+    apiMock.deleteSource.mockReset();
     apiMock.syncYouTubeChannel.mockReturnValue(
       of({
         platform: 'youtube',
@@ -439,5 +441,78 @@ describe('SourcesPage', () => {
     expect(video.status).toBe('processed');
     expect(component.processingSummaries.get(video.videoId)).toContain('2 source statements');
     expect(component.processingVideoId).toBeNull();
+  });
+
+  it('opens and cancels source deletion without deleting data', () => {
+    const source = {
+      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
+      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+    };
+
+    component.openDeleteSourceConfirmation(source);
+
+    expect(component.showDeleteSource).toBe(true);
+    expect(component.sourcePendingDeletion).toBe(source);
+
+    component.cancelDeleteSource();
+
+    expect(component.showDeleteSource).toBe(false);
+    expect(component.sourcePendingDeletion).toBeNull();
+    expect(apiMock.deleteSource).not.toHaveBeenCalled();
+  });
+
+  it('deletes the confirmed source and clears all selected-source state', () => {
+    const source = {
+      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
+      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+    };
+    const retainedSource = {
+      name: 'keep', perspective: 'YouTube source', status: 'verified' as const,
+      contentCount: 0, conceptCount: 0, sourceKey: 'youtube:channel-id:keep',
+    };
+    component.sources = [source, retainedSource];
+    component.selectedSource = source;
+    component.sourceVideos = [{
+      videoId: 'VIDEO-123', title: 'Test video', url: 'https://youtube.com/watch?v=VIDEO-123',
+      publishedAt: null, discoveredAt: null, status: 'processed', currentVersionId: 1,
+      processedAt: '2026-11-24T00:00:00.000Z', claimCount: 1,
+    }];
+    component.processingSummaries.set('VIDEO-123', 'Saved.');
+    component.openDeleteSourceConfirmation(source);
+    apiMock.deleteSource.mockReturnValue(of({
+      status: 'deleted', sourceKey: source.sourceKey, deletedVideos: 1,
+      deletedProcessingAttempts: 1, deletedContentVersions: 1,
+    }));
+
+    component.confirmDeleteSource();
+
+    expect(apiMock.deleteSource).toHaveBeenCalledWith(source.sourceKey);
+    expect(component.sources).toEqual([retainedSource]);
+    expect(component.selectedSource).toBeNull();
+    expect(component.sourceVideos).toEqual([]);
+    expect(component.processingSummaries.size).toBe(0);
+    expect(component.showDeleteSource).toBe(false);
+    expect(component.sourcePendingDeletion).toBeNull();
+  });
+
+  it('keeps the source and confirmation open when deletion fails', () => {
+    const source = {
+      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
+      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+    };
+    component.sources = [source];
+    component.selectedSource = source;
+    component.openDeleteSourceConfirmation(source);
+    apiMock.deleteSource.mockReturnValue(throwError(() => ({
+      error: { message: 'Source deletion failed.' },
+    })));
+
+    component.confirmDeleteSource();
+
+    expect(component.sources).toEqual([source]);
+    expect(component.selectedSource).toBe(source);
+    expect(component.showDeleteSource).toBe(true);
+    expect(component.deleteSourceError).toBe('Source deletion failed.');
+    expect(component.deletingSource).toBe(false);
   });
 });

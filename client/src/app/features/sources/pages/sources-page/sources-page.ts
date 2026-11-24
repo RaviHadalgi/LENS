@@ -88,6 +88,10 @@ export class SourcesPage implements OnInit {
   sourcesError = '';
 
   selectedSource: Source | null = null;
+  showDeleteSource = false;
+  sourcePendingDeletion: Source | null = null;
+  deletingSource = false;
+  deleteSourceError = '';
 
   sourceVideos: SourceVideo[] = [];
   sourceVideosLoading = false;
@@ -271,6 +275,61 @@ export class SourcesPage implements OnInit {
           this.changeDetector.detectChanges();
         },
       });
+  }
+
+  openDeleteSourceConfirmation(source: Source): void {
+    this.sourcePendingDeletion = source;
+    this.deleteSourceError = '';
+    this.showDeleteSource = true;
+  }
+
+  cancelDeleteSource(): void {
+    if (this.deletingSource) {
+      return;
+    }
+
+    this.showDeleteSource = false;
+    this.sourcePendingDeletion = null;
+    this.deleteSourceError = '';
+  }
+
+  confirmDeleteSource(): void {
+    const source = this.sourcePendingDeletion;
+
+    if (!source || this.deletingSource) {
+      return;
+    }
+
+    this.deletingSource = true;
+    this.deleteSourceError = '';
+
+    this.api.deleteSource(source.sourceKey).subscribe({
+      next: () => {
+        this.sources = this.sources.filter((item) => item.sourceKey !== source.sourceKey);
+
+        if (this.selectedSource?.sourceKey === source.sourceKey) {
+          this.selectedSource = null;
+          this.sourceVideos = [];
+          this.sourceVideosError = '';
+          this.sourceVideosLoading = false;
+          this.cancelVideoProcessing();
+          this.processingSummaries.clear();
+        }
+
+        this.deletingSource = false;
+        this.showDeleteSource = false;
+        this.sourcePendingDeletion = null;
+        this.changeDetector.detectChanges();
+      },
+
+      error: (error) => {
+        console.error('Failed to delete source:', error);
+        this.deletingSource = false;
+        this.deleteSourceError =
+          error?.error?.message ?? 'LENS could not remove this source. Please try again.';
+        this.changeDetector.detectChanges();
+      },
+    });
   }
 
   get modalDescription(): string {

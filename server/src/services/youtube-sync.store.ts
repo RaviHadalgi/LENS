@@ -42,6 +42,13 @@ export interface UpsertSourceAccountInput {
   lastSuccessfulSyncAt: string | null;
 }
 
+export interface DeletedSourceData {
+  sourceKey: string;
+  deletedVideos: number;
+  deletedProcessingAttempts: number;
+  deletedContentVersions: number;
+}
+
 export class YouTubeSyncStore {
   private readonly filePath: string;
   private db: DatabaseSync | null = null;
@@ -216,6 +223,51 @@ export class YouTubeSyncStore {
       .all() as unknown as Array<SourceAccount & SourceInventory>;
 
     return rows;
+  }
+
+  async deleteSource(sourceKey: string): Promise<DeletedSourceData | null> {
+    const db = this.database();
+    db.exec("BEGIN IMMEDIATE");
+
+    try {
+      const source = db
+        .prepare("SELECT 1 FROM source_accounts WHERE source_key = ?")
+        .get(sourceKey);
+
+      if (!source) {
+        db.exec("COMMIT");
+        return null;
+      }
+
+      const processingAttempts = db
+        .prepare("DELETE FROM video_processing_attempts WHERE source_key = ?")
+        .run(sourceKey);
+      const contentVersions = db
+        .prepare("DELETE FROM content_versions WHERE source_key = ?")
+        .run(sourceKey);
+      const videos = db
+        .prepare("DELETE FROM youtube_videos WHERE source_key = ?")
+        .run(sourceKey);
+      const sourceAccount = db
+        .prepare("DELETE FROM source_accounts WHERE source_key = ?")
+        .run(sourceKey);
+
+      if (sourceAccount.changes !== 1) {
+        throw new Error("Source account changed during deletion.");
+      }
+
+      db.exec("COMMIT");
+
+      return {
+        sourceKey,
+        deletedVideos: Number(videos.changes),
+        deletedProcessingAttempts: Number(processingAttempts.changes),
+        deletedContentVersions: Number(contentVersions.changes),
+      };
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   async updateVideoStatus(

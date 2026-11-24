@@ -7,6 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 
 import { YouTubeSyncService } from "./youtube-sync.service";
 import { YouTubeSyncStore } from "./youtube-sync.store";
+import {
+  TranscriptProcessingAdapter,
+  VideoProcessingService,
+} from "./video-processing.service";
 import type {
   YouTubeRecentVideo,
   YouTubeSyncState,
@@ -758,5 +762,84 @@ test("does not update processing status when the source does not own the video",
       recursive: true,
       force: true,
     });
+  }
+});
+
+test("deletes a source and all of its associated data without affecting other sources", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lens-youtube-source-delete-"));
+  const databasePath = join(directory, "sync.sqlite");
+
+  try {
+    const store = new YouTubeSyncStore(databasePath);
+    const sourceKey = "youtube:channel-id:delete-me";
+    const otherSourceKey = "youtube:channel-id:keep-me";
+
+    await store.upsertSourceAccount({
+      sourceKey,
+      platform: "youtube",
+      sourceType: "channel",
+      externalId: "UCdelete",
+      url: "https://youtube.com/channel/UCdelete",
+      handle: "@delete-me",
+      status: "active",
+      lastCheckedAt: null,
+      lastSuccessfulSyncAt: null,
+    });
+    await store.upsertSourceAccount({
+      sourceKey: otherSourceKey,
+      platform: "youtube",
+      sourceType: "channel",
+      externalId: "UCkeep",
+      url: "https://youtube.com/channel/UCkeep",
+      handle: "@keep-me",
+      status: "active",
+      lastCheckedAt: null,
+      lastSuccessfulSyncAt: null,
+    });
+    await store.upsertVideo(sourceKey, {
+      videoId: "DELETE-VIDEO",
+      title: "Delete this video",
+      url: "https://youtube.com/watch?v=DELETE-VIDEO",
+      publishedAt: null,
+      status: "needs-review",
+    });
+    await store.upsertVideo(otherSourceKey, {
+      videoId: "KEEP-VIDEO",
+      title: "Keep this video",
+      url: "https://youtube.com/watch?v=KEEP-VIDEO",
+      publishedAt: null,
+      status: "discovered",
+    });
+
+    const processing = new VideoProcessingService(
+      store,
+      new TranscriptProcessingAdapter({
+        language: "en",
+        segments: [{ text: "Stored source statement.", startSeconds: null, endSeconds: null }],
+      }),
+    );
+    const processed = await processing.process("DELETE-VIDEO", sourceKey);
+    assert.equal(processed.status, "processed");
+
+    const deleted = await store.deleteSource(sourceKey);
+
+    assert.deepEqual(deleted, {
+      sourceKey,
+      deletedVideos: 1,
+      deletedProcessingAttempts: 1,
+      deletedContentVersions: 1,
+    });
+    assert.equal(await store.getSourceAccount(sourceKey), null);
+    assert.equal(await store.hasVideo("DELETE-VIDEO"), false);
+    assert.deepEqual(await store.listProcessingAttempts("DELETE-VIDEO", sourceKey), []);
+    assert.deepEqual(await store.listContentVersions("DELETE-VIDEO", sourceKey), []);
+
+    assert.ok(await store.getSourceAccount(otherSourceKey));
+    assert.equal(await store.hasVideo("KEEP-VIDEO"), true);
+    assert.equal(await store.deleteSource(sourceKey), null);
+
+    await store.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

@@ -38,7 +38,8 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Show source metadata before processing | **Implemented** | The analysis step shows available title, author, thumbnail, source type, and a conservative creator identity draft. It includes error and unavailable-metadata states. | Add explicit metadata provenance and user correction for source identity. |
 | Review and edit creator identity without fabricated credentials | **Partial** | The profile step uses public metadata, marks identity for review, and avoids inventing biography or credentials. Editable profile controls exist. | Persist edits to the server, store evidence, distinguish self-claims from independent evidence, and support later correction. |
 | Choose full channel, playlists, recent videos, or selected videos | **Partial** | Backfill choices are represented in the add-source interface. | Connect each selection to a distinct server request; current channel sync uses the recent public feed regardless of the visual choice. |
-| Save a source library | **Implemented** | The Sources page loads persisted source accounts from the server and displays source type, state, inventory size, and sync details. | Add search/filter, archive/delete, health indicators, and source settings. |
+| Save a source library | **Implemented** | The Sources page loads persisted source accounts from the server and displays source type, state, inventory size, and sync details. | Add search/filter, optional archive, health indicators, and source settings. |
+| Delete a source with explicit confirmation | **Implemented** | A selected source has a Remove source action. A modal explains that associated content and history will be deleted; Cancel/close leaves the source unchanged, while Remove calls the deletion API and clears the deleted source from the interface. Server errors keep the source and modal available for retry. | Extend the warning text if future source-owned data categories are added. |
 | Show per-source content inventory and processing status | **Implemented** | Selecting a source loads videos with published date, workflow status, current version, and source-statement count. | Add pagination, sorting, richer failure details, processing history, and version history. |
 | Support discovered, processing, processed, skipped, needs-review, and failed states | **Implemented** | The inventory renders the persisted workflow state and exposes allowed review/skip/process/retry actions. It does not let the user manually mark an item processed. | Add a queued state and background progress/notification experience. |
 | Retry failed processing | **Implemented** | Failed items can be retried through the transcript-processing flow. | Add retry explanation, attempt history, and policy/limit feedback. |
@@ -82,7 +83,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Requirement from the shared documents | Status | Current client behavior | Remaining work |
 | --- | --- | --- | --- |
 | Reflective Life view without a universal score | **Not implemented** | A sidebar destination is shown but no route or data view exists. | Build descriptive timelines and trends with observed/user-reported/estimated/AI provenance. |
-| Local data visibility and control | **Partial** | Sources and processing data come from the local server. | Add storage location/status, export, backup, restore, retention, and deletion controls. |
+| Local data visibility and control | **Partial** | Sources and processing data come from the local server, and an individual source can be permanently removed after confirmation. | Add storage location/status, export, backup, restore, retention, and full-account deletion controls. |
 | Markdown/JSON export and optional Google Drive backup | **Not implemented** | No export or backup UI exists. | Add previewable local export first, then an explicitly connected Drive option. |
 | Secure provider/model settings and cost controls | **Not implemented** | There is no settings workflow for secrets, providers, budgets, or usage. | Add secure configuration, estimated/actual usage, processing consent, and model/provider choices. |
 
@@ -93,7 +94,7 @@ Every user-requested client, route, component, user-flow, presentation, accessib
 | Route | Current state |
 | --- | --- |
 | `/ask` | Working interface with mock answer generation; no real retrieval. |
-| `/sources` | Working local-server integration for analysis, channel sync, source inventory, video status, and transcript processing. |
+| `/sources` | Working local-server integration for analysis, channel sync, source inventory, video status, transcript processing, and confirmed source deletion. |
 | `/knowledge` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/review` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
 | `/compare` | Not defined; sidebar navigation ultimately falls back to `/ask`. |
@@ -113,6 +114,7 @@ The root route redirects to `/ask`, and unknown routes also redirect to `/ask`.
 7. Paste transcript text; blank lines create separate source statements.
 8. Process, retry, or submit an updated transcript.
 9. Display processed/unchanged outcome, current content version, and statement count.
+10. Choose Remove source, review the permanent-deletion warning, and either cancel without changes or confirm removal of the source and its associated data.
 
 ### Working Ask presentation
 
@@ -152,24 +154,25 @@ All Ask content and statistics are currently mock data and must not be treated a
 7. **Add user judgment:** implement the full knowledge-state vocabulary and separate notes, goals, actions, and conclusions.
 8. **Build monitoring feedback:** background sync/processing progress, completion/failure notices, new-content summaries, and review counts.
 9. **Add Life carefully:** descriptive timelines and trends with provenance labels, user correction, and no universal score.
-10. **Complete Settings and ownership:** environment/server configuration, export/delete, backup/restore, optional Drive connection, secret handling, provider choice, and cost controls.
+10. **Complete Settings and ownership:** environment/server configuration, export, full-account deletion, backup/restore, optional Drive connection, secret handling, provider choice, and cost controls. Keep source deletion synchronized with future source-owned entities.
 11. **Harden the experience:** accessibility, keyboard navigation, responsive QA, offline/reconnect behavior, pagination, filtering, and large-library performance.
 
 ## Verification evidence
 
 At this reconciliation point:
 
-- The client test suite passes: **28 tests**.
+- The client test suite passes: **32 tests**.
 - The Angular production build passes.
-- The production bundle is approximately **391.15 kB raw** and **99.60 kB estimated transfer** at the latest verification.
+- The production bundle is approximately **394.31 kB raw** and **100.08 kB estimated transfer** at the latest verification.
 - The Sources page stylesheet is below the configured 12 kB warning threshold; the maximum style error limit remains 16 kB.
-- Tests cover the API service and Sources interactions, including inventory loading, status actions, processing, retry, updated transcript submission, and outcome display.
+- Tests cover the API service and Sources interactions, including inventory loading, status actions, processing, retry, updated transcript submission, outcome display, deletion confirmation/cancellation, successful removal, and failure preservation.
 
 ## Change history
 
 | Date | Change recorded | Requirement/limitation impact | Verification |
 | --- | --- | --- | --- |
 | 24 November 2026 | Reconciled all five shared LENS documents with the current Angular client; documented the application shell, mock Ask experience, Sources integration, inventory states, transcript submission, retry, and content-version feedback. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Ask retrieval, remaining product routes, automatic transcripts, persisted creator edits, review, user knowledge, Life, settings, and ownership controls remain future work. | All 28 client tests and the Angular production build passed. Documentation consistency check passed. |
+| 24 November 2026 | Added a Remove source action and confirmation modal. Cancel/close preserves the source; confirmation calls the deletion API, removes the source from the library, and clears selected content state. Failed deletion leaves the source visible and shows a retryable error. | Confirmed source deletion is implemented. Export, backup, full-account deletion, and deletion coverage for future knowledge entities remain future work. | All 32 client tests passed; the production build and documentation consistency checks passed. |
 
 ## Source documents reconciled
 

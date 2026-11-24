@@ -245,6 +245,32 @@
   font-size: 13px;
 }
 
+.delete-source-warning {
+  padding: 16px;
+  border: 1px solid #efd0cc;
+  border-radius: 12px;
+  background: #fff8f7;
+  color: #5f2722;
+}
+
+.delete-source-warning strong {
+  display: block;
+  font-size: 15px;
+}
+
+.delete-source-warning p {
+  margin: 7px 0 0;
+  color: #7d4039;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.delete-source-error {
+  margin: 12px 0 0;
+  color: #9b3434;
+  font-size: 13px;
+}
+
 .source-inventory-state {
   display: flex;
   align-items: center;

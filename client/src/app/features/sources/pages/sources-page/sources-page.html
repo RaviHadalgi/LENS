@@ -104,6 +104,15 @@
               owned by this source
             </p>
           </div>
+
+          <app-lens-button
+            variant="danger"
+            size="small"
+            type="button"
+            (click)="openDeleteSourceConfirmation(selectedSource)"
+          >
+            Remove source
+          </app-lens-button>
         </div>
 
         @if (sourceVideosLoading) {
@@ -268,6 +277,48 @@
       </section>
     }
   </section>
+
+  <app-lens-modal
+    [open]="showDeleteSource"
+    title="Remove this source?"
+    description="This action permanently removes the source and everything LENS stored for it."
+    [closeOnBackdrop]="!deletingSource"
+    (closed)="cancelDeleteSource()"
+  >
+    @if (sourcePendingDeletion) {
+      <div class="delete-source-warning">
+        <strong>{{ sourcePendingDeletion.name }}</strong>
+        <p>
+          All associated videos, transcripts, source statements, content versions, and processing
+          history will be deleted. This cannot be undone.
+        </p>
+      </div>
+
+      @if (deleteSourceError) {
+        <p class="delete-source-error" role="alert">{{ deleteSourceError }}</p>
+      }
+    }
+
+    <div lens-modal-footer>
+      <app-lens-button
+        variant="secondary"
+        type="button"
+        [disabled]="deletingSource"
+        (click)="cancelDeleteSource()"
+      >
+        Cancel
+      </app-lens-button>
+
+      <app-lens-button
+        variant="danger"
+        type="button"
+        [loading]="deletingSource"
+        (click)="confirmDeleteSource()"
+      >
+        Remove source
+      </app-lens-button>
+    </div>
+  </app-lens-modal>
 
   <app-lens-modal
     [open]="showAddSource"

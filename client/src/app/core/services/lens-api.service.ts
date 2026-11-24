@@ -122,6 +122,14 @@ export interface ListSourcesResponse {
   sources: SourceAccount[];
 }
 
+export interface DeleteSourceResponse {
+  status: 'deleted';
+  sourceKey: string;
+  deletedVideos: number;
+  deletedProcessingAttempts: number;
+  deletedContentVersions: number;
+}
+
 export interface ProcessVideoResponse {
   sourceKey: string;
   videoId: string;
@@ -149,6 +157,12 @@ export class LensApiService {
 
   listSources(): Observable<ListSourcesResponse> {
     return this.http.get<ListSourcesResponse>(`${this.baseUrl}/sources`);
+  }
+
+  deleteSource(sourceKey: string): Observable<DeleteSourceResponse> {
+    return this.http.delete<DeleteSourceResponse>(
+      `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}`,
+    );
   }
 
   listSourceVideos(sourceKey: string): Observable<ListSourceVideosResponse> {

@@ -156,6 +156,29 @@ describe('LensApiService', () => {
     request.flush(response);
   });
 
+  it('deletes a source and its associated data', () => {
+    const sourceKey = 'youtube:channel-id:uc-test';
+
+    service.deleteSource(sourceKey).subscribe((result) => {
+      expect(result.status).toBe('deleted');
+      expect(result.deletedVideos).toBe(2);
+    });
+
+    const request = httpMock.expectOne(
+      'http://localhost:3000/api/sources/youtube%3Achannel-id%3Auc-test',
+    );
+
+    expect(request.request.method).toBe('DELETE');
+
+    request.flush({
+      status: 'deleted',
+      sourceKey,
+      deletedVideos: 2,
+      deletedProcessingAttempts: 1,
+      deletedContentVersions: 1,
+    });
+  });
+
   it('lists videos for a source', () => {
     const sourceKey = 'youtube:channel-id:uc-test';
 

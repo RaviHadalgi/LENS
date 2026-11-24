@@ -29,7 +29,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | Preserve source wording, context, uncertainty, and provenance | **Partial** | User-supplied transcript segments are stored verbatim as source statements with language context and optional timestamps. | Store structured provenance per statement, preserve ambiguity explicitly, and separate later LENS synthesis from source material. |
 | Keep source statements, LENS interpretation, and user judgment separate | **Partial** | The processing adapter produces only source statements and does not fabricate summaries. | Add separate stores and APIs for interpretations, verification, user classifications, notes, and conclusions. |
 | Avoid inventing creator credentials or identity claims | **Implemented** | Creator identity is returned as a conservative `needs-review` draft based on public source metadata. | Add reviewed creator records and evidence-backed identity fields. |
-| Local ownership, export, and deletion | **Partial** | Data is local by default. | Add Markdown/JSON export, backup, restore, source deletion, full account deletion, and data-retention controls. |
+| Local ownership, export, and deletion | **Partial** | Data is local by default. Deleting a source transactionally removes its account, videos, processing attempts, and content versions. | Add Markdown/JSON export, backup, restore, full account deletion, and data-retention controls. |
 
 ### Source ingestion and inventory
 
@@ -40,7 +40,8 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | Support channel handles, IDs, custom URLs, and usernames | **Partial** | Common URL forms are detected. Canonical channel IDs are the reliable RSS sync path; other forms depend on public page resolution and can remain `needs-review`. | Add a robust channel-resolution flow with explicit user correction. |
 | Backfill full channel, selected playlists, recent content, or specific videos | **Partial** | Recent channel videos can be discovered from YouTube's public Atom feed. | Implement the selected backfill mode, full history pagination, playlist ingestion, and specific-video import. |
 | Stable external identity and duplicate prevention | **Implemented** | YouTube video ID is the stable content key. Existing videos are skipped during sync and the feed scan stops at known content. | Extend duplicate handling across playlists, direct video imports, and changed metadata. |
-| Source library and per-source content inventory | **Implemented** | SQLite stores source accounts and discovered videos; APIs list both with counts and current processing information. | Add filtering, pagination, archival/deletion, and richer source health data. |
+| Source library and per-source content inventory | **Implemented** | SQLite stores source accounts and discovered videos; APIs list both with counts and current processing information. A source and all current source-owned records can be deleted atomically. | Add filtering, pagination, optional archival, and richer source health data. |
+| Delete a source and all associated data | **Implemented** | `DELETE /api/sources/:sourceKey` removes processing attempts, content versions, videos, and the source account in one SQLite transaction. Missing sources return `404`; any failure rolls back the operation. | Extend the deletion transaction when future source-owned knowledge tables are introduced. |
 | Lightweight recurring monitoring | **Partial** | A channel sync can be triggered manually and stores last-check and last-success timestamps. | Add a scheduler, configurable cadence, background execution, notifications, and failure recovery. |
 
 ### Processing lifecycle and versioning
@@ -101,6 +102,7 @@ Every user-requested server, API, data-model, ingestion, processing, retrieval, 
 | --- | --- |
 | `GET /api/health` | Basic service health response. |
 | `GET /api/sources` | Lists saved source accounts with content counts and sync state. |
+| `DELETE /api/sources/:sourceKey` | Permanently deletes a source and its videos, processing attempts, and content versions in one transaction. |
 | `POST /api/sources/analyze` | Detects a YouTube URL type and returns available metadata plus a reviewable creator identity draft. |
 | `POST /api/sources/youtube/sync` | Resolves and syncs a YouTube channel's recent public feed into the local inventory. |
 | `GET /api/sources/:sourceKey/videos` | Lists a source's discovered videos, current version, processed time, and source-statement count. |
@@ -146,7 +148,7 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 - The SQLite result payload is serialized JSON; normalized Claim, Segment, Provenance, Concept, and Relationship tables are still needed.
 - There is no search index, embedding store, knowledge graph, Ask service, or retrieval trace.
 - There is no review queue, user knowledge state, personal history, external research store, or Life data layer.
-- There is no authentication, per-user boundary, restricted CORS policy, export/delete service, backup, monitoring dashboard, or notification system.
+- There is no authentication, per-user boundary, restricted CORS policy, export service, full-account deletion, backup, monitoring dashboard, or notification system.
 - The service URL/port and operational configuration are still development-oriented.
 
 ## Future enhancement order
@@ -160,15 +162,15 @@ This covers the ingestion and safe-processing foundation. It does not yet perfor
 7. **Implement Ask:** intent parsing, local retrieval, query modes, cited synthesis, source-only responses, comparison, timelines, conflict views, and “Why am I seeing this?” traces.
 8. **Add personal knowledge:** user knowledge states, notes, goals, actions, conclusions, and versioned user history in separate tables.
 9. **Add background operation:** durable queue, worker leases, scheduled source monitoring, notifications, retry policies, and observability.
-10. **Complete data ownership:** Markdown/JSON export, deletion, backup/restore, optional Google Drive backup, secure secrets, and production access controls.
+10. **Complete data ownership:** extend source deletion to future knowledge entities, then add Markdown/JSON export, full-account deletion, backup/restore, optional Google Drive backup, secure secrets, and production access controls.
 11. **Add external research and Life data:** retain distinct provenance and keep reflective analytics descriptive rather than scored.
 
 ## Verification evidence
 
 At this reconciliation point:
 
-- The server test suite passes: **32 tests**.
-- Tests cover source analysis/sync foundations, persistence, state transitions, ownership, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
+- The server test suite passes: **33 tests**.
+- Tests cover source analysis/sync foundations, persistence, state transitions, ownership, transactional source deletion and isolation, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
 - The default SQLite file is `server/data/youtube-sync.sqlite`; runtime data is excluded from version control.
 
 ## Change history
@@ -176,6 +178,7 @@ At this reconciliation point:
 | Date | Change recorded | Requirement/limitation impact | Verification |
 | --- | --- | --- | --- |
 | 24 November 2026 | Reconciled all five shared LENS documents with the current server; documented source ingestion, SQLite inventory, transcript processing, content versioning, retry, ownership, and stale-attempt recovery. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Automatic transcript acquisition, semantic knowledge extraction, retrieval, review, personal knowledge, background monitoring, export, and production access controls remain future work. | Server build and all 32 server tests passed. Documentation consistency check passed. |
+| 24 November 2026 | Added permanent source deletion through `DELETE /api/sources/:sourceKey`. The deletion transaction removes the source account, owned videos, processing attempts, and content versions while preserving unrelated sources. | Source-level deletion is implemented. Future source-owned knowledge tables must join the same transaction; export, backup, retention, and full-account deletion remain future work. | Server build and all 33 server tests passed, including associated-data deletion and cross-source isolation. |
 
 ## Source documents reconciled
 

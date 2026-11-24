@@ -58,11 +58,31 @@ provider supplies them. The stored statements are the ingestion layer; semantic
 claim extraction, concepts, relationships, novelty classification, and retrieval-first
 Ask remain later knowledge-engine milestones.
 
-Verification: all 32 server tests and all 28 client tests pass. Coverage includes
+Verification at this checkpoint: all 33 server tests and all 32 client tests pass. Coverage includes
 success, failure and retry, ownership, review gating, duplicate prevention,
 unchanged and changed versions, stale-attempt recovery, validation, persistence,
 transaction rollback, and the client transcript request. Source-service tests use
 local HTML fixtures rather than live YouTube access. Angular's application test
 bundle and production build both complete successfully. The component-style warning
 threshold is 12 kB, with the existing 16 kB error limit retained; the Sources page
-is currently about 10 kB.
+remains below the configured warning threshold.
+
+## Source deletion checkpoint — 24 November 2026
+
+`DELETE /api/sources/:sourceKey` permanently removes a source account and all of
+the data currently owned by that source: discovered videos, processing attempts,
+and content versions. The operation uses one immediate SQLite transaction, returns
+`404` when the source does not exist, and rolls back every deletion if any step
+fails. Records owned by other sources are not changed.
+
+The Sources page exposes this action only after a source is selected. A confirmation
+modal names the source, lists the associated data that will be removed, and provides
+Cancel and Remove source actions. Cancel and modal close leave all data unchanged.
+After a successful confirmation, the client removes the source from the library and
+clears its selected videos and processing state. A failed request keeps the source
+and confirmation open with an error so the user can retry.
+
+Verification now includes all 33 server tests and all 32 client tests. The deletion
+coverage checks associated-data removal, rollback-safe transactional structure,
+cross-source isolation, the DELETE request, confirmation cancellation, successful UI
+cleanup, and failure preservation.

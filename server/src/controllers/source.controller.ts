@@ -25,6 +25,36 @@ export async function listSources(_req: Request, res: Response): Promise<void> {
   });
 }
 
+export async function deleteSource(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sourceKey = req.params["sourceKey"];
+
+  if (typeof sourceKey !== "string" || sourceKey.length === 0) {
+    res.status(400).json({
+      status: "invalid",
+      message: "A source key is required.",
+    });
+    return;
+  }
+
+  const deleted = await youtubeSyncStore.deleteSource(sourceKey);
+
+  if (!deleted) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Source not found.",
+    });
+    return;
+  }
+
+  res.status(200).json({
+    status: "deleted",
+    ...deleted,
+  });
+}
+
 export async function analyzeSource(
   req: Request,
   res: Response,
