@@ -2,8 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { SourceService } from './source.service';
+import { SourceProviderRegistry } from './source-providers/source-provider-registry';
+import { YouTubeSourceProvider } from './source-providers/youtube-source.provider';
 
-const sourceService = new SourceService();
+// Keep unit tests offline; live YouTube availability is not a test prerequisite.
+const sourceService = new SourceService(new SourceProviderRegistry([
+  new YouTubeSourceProvider({
+    fetchImplementation: async () => new Response(`<html><head>
+      <meta itemprop="channelId" content="UCXZCJLdBC09xxGZ6gcdrc6A">
+      <meta name="title" content="OpenAI">
+      </head></html>`, { status: 200, headers: { 'content-type': 'text/html' } }),
+  }),
+]));
 
 test('resolves an @handle channel URL from public YouTube metadata', async () => {
   const result = await sourceService.analyzeUrl(

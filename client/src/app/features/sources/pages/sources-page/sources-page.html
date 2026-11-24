@@ -186,37 +186,81 @@
                       type="button"
                       [disabled]="updatingVideoIds.has(video.videoId)"
                       class="video-action video-action-primary"
-                      (click)="processSourceVideo(video)"
+                      (click)="openVideoProcessing(video)"
                     >
-                      Start processing
+                      Add transcript
                     </button>
                   }
 
-                  @if (video.status === 'processing') {
+                  @if (video.status === 'failed') {
                     <button
                       type="button"
                       [disabled]="updatingVideoIds.has(video.videoId)"
                       class="video-action video-action-primary"
-                      (click)="updateSourceVideoStatus(video, 'processed')"
+                      (click)="openVideoProcessing(video)"
                     >
-                      Mark processed
+                      Retry processing
                     </button>
                   }
 
-                  @if (
-                    video.status !== 'processed' &&
-                    video.status !== 'processing' &&
-                    video.status !== 'needs-review'
-                  ) {
+                  @if (video.status === 'processed') {
                     <button
                       type="button"
                       class="video-action video-action-primary"
-                      (click)="updateSourceVideoStatus(video, 'processed')"
+                      (click)="openVideoProcessing(video)"
                     >
-                      Mark processed
+                      Update transcript
                     </button>
                   }
                 </div>
+
+                @if (processingSummaries.get(video.videoId); as summary) {
+                  <p class="processing-summary">{{ summary }}</p>
+                } @else if (video.status === 'processed' && video.currentVersionId) {
+                  <p class="processing-summary">
+                    {{ video.claimCount }} source
+                    {{ video.claimCount === 1 ? 'statement' : 'statements' }} saved as version
+                    {{ video.currentVersionId }}.
+                  </p>
+                }
+
+                @if (processingVideoId === video.videoId) {
+                  <div class="transcript-panel">
+                    <label [for]="'transcript-' + video.videoId">Transcript or source text</label>
+                    <p>
+                      Paste available text. Separate sections with a blank line. LENS saves each
+                      section as a source statement without inventing missing content.
+                    </p>
+                    <textarea
+                      [id]="'transcript-' + video.videoId"
+                      [(ngModel)]="processingTranscript"
+                      rows="8"
+                      maxlength="200000"
+                      placeholder="Paste transcript text here…"
+                    ></textarea>
+                    @if (processingError) {
+                      <p class="transcript-error" role="alert">{{ processingError }}</p>
+                    }
+                    <div class="transcript-actions">
+                      <button
+                        type="button"
+                        class="video-action video-action-secondary"
+                        [disabled]="updatingVideoIds.has(video.videoId)"
+                        (click)="cancelVideoProcessing()"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        class="video-action video-action-primary"
+                        [disabled]="updatingVideoIds.has(video.videoId) || !processingTranscript.trim()"
+                        (click)="processSourceVideo(video)"
+                      >
+                        {{ updatingVideoIds.has(video.videoId) ? 'Processing…' : 'Process transcript' }}
+                      </button>
+                    </div>
+                  </div>
+                }
               </article>
             }
           </div>

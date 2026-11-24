@@ -109,4 +109,7 @@ export interface SourceVideo {
   publishedAt: string | null;
   discoveredAt: string | null;
   status: YouTubeRecentVideo['status'] | null;
+  currentVersionId: number | null;
+  processedAt: string | null;
+  claimCount: number;
 }

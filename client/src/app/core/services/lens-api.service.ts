@@ -108,6 +108,9 @@ export interface SourceVideo {
   publishedAt: string | null;
   discoveredAt: string | null;
   status: 'discovered' | 'skipped' | 'processed' | 'failed' | 'needs-review' | 'processing' | null;
+  currentVersionId: number | null;
+  processedAt: string | null;
+  claimCount: number;
 }
 
 export interface ListSourceVideosResponse {
@@ -117,6 +120,15 @@ export interface ListSourceVideosResponse {
 
 export interface ListSourcesResponse {
   sources: SourceAccount[];
+}
+
+export interface ProcessVideoResponse {
+  sourceKey: string;
+  videoId: string;
+  status: 'processed' | 'unchanged';
+  attemptId: number;
+  versionId: number;
+  claimCount: number;
 }
 
 @Injectable({
@@ -145,7 +157,7 @@ export class LensApiService {
     );
   }
 
-  updateSourceVideoStatus(sourceKey: string, videoId: string, status: SourceVideo['status']) {
+  updateSourceVideoStatus(sourceKey: string, videoId: string, status: 'needs-review' | 'skipped') {
     return this.http.patch<{
       sourceKey: string;
       videoId: string;
@@ -161,18 +173,17 @@ export class LensApiService {
   processSourceVideo(
     sourceKey: string,
     videoId: string,
-  ): Observable<{
-    sourceKey: string;
-    videoId: string;
-    status: 'processing';
-  }> {
-    return this.http.post<{
-      sourceKey: string;
-      videoId: string;
-      status: 'processing';
-    }>(
+    transcriptText: string,
+  ): Observable<ProcessVideoResponse> {
+    const segments = transcriptText
+      .split(/\n\s*\n/)
+      .map((text) => text.trim())
+      .filter(Boolean)
+      .map((text) => ({ text, startSeconds: null, endSeconds: null }));
+
+    return this.http.post<ProcessVideoResponse>(
       `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos/${encodeURIComponent(videoId)}/process`,
-      {},
+      { transcript: { language: 'und', segments } },
     );
   }
 }

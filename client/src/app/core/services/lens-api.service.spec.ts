@@ -185,12 +185,12 @@ describe('LensApiService', () => {
   service.updateSourceVideoStatus(
     'youtube:channel-id:uc-test',
     'VIDEO-123',
-    'processed',
+    'needs-review',
   ).subscribe((result) => {
     expect(result).toEqual({
       sourceKey: 'youtube:channel-id:uc-test',
       videoId: 'VIDEO-123',
-      status: 'processed',
+      status: 'needs-review',
     });
   });
 
@@ -200,13 +200,35 @@ describe('LensApiService', () => {
 
   expect(request.request.method).toBe('PATCH');
   expect(request.request.body).toEqual({
-    status: 'processed',
+    status: 'needs-review',
   });
 
   request.flush({
     sourceKey: 'youtube:channel-id:uc-test',
     videoId: 'VIDEO-123',
-    status: 'processed',
+    status: 'needs-review',
   });
 });
+
+  it('processes transcript paragraphs as source segments', () => {
+    service.processSourceVideo('source/a', 'video-1', 'First.\n\nSecond.').subscribe();
+
+    const request = httpMock.expectOne(
+      'http://localhost:3000/api/sources/source%2Fa/videos/video-1/process',
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      transcript: {
+        language: 'und',
+        segments: [
+          { text: 'First.', startSeconds: null, endSeconds: null },
+          { text: 'Second.', startSeconds: null, endSeconds: null },
+        ],
+      },
+    });
+    request.flush({
+      sourceKey: 'source/a', videoId: 'video-1', status: 'processed',
+      attemptId: 1, versionId: 1, claimCount: 2,
+    });
+  });
 });

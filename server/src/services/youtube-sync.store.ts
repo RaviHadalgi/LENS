@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { VideoProcessingResult } from "./video-processing.service";
 
 import type {
   SourceType,
@@ -47,6 +48,92 @@ export class YouTubeSyncStore {
 
   constructor(filePath = DEFAULT_PATH) {
     this.filePath = filePath;
+  }
+
+  async beginProcessing(videoId: string, sourceKey: string): Promise<
+    { status: "started"; attemptId: number } | { status: "not-found" | "conflict" }
+  > {
+    const db = this.database();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const video = db.prepare("SELECT status FROM youtube_videos WHERE video_id = ? AND source_key = ?")
+        .get(videoId, sourceKey) as { status: string | null } | undefined;
+      if (!video) {
+        db.exec("COMMIT");
+        return { status: "not-found" };
+      }
+      const active = db.prepare("SELECT 1 FROM video_processing_attempts WHERE video_id = ? AND status = 'processing'").get(videoId);
+      if (active || !["needs-review", "failed", "processed"].includes(video.status ?? "")) {
+        db.exec("COMMIT");
+        return { status: "conflict" };
+      }
+      const inserted = db.prepare(`INSERT INTO video_processing_attempts
+        (video_id, source_key, status, started_at) VALUES (?, ?, 'processing', ?)`)
+        .run(videoId, sourceKey, new Date().toISOString());
+      db.prepare("UPDATE youtube_videos SET status = 'processing' WHERE video_id = ? AND source_key = ?")
+        .run(videoId, sourceKey);
+      db.exec("COMMIT");
+      return { status: "started", attemptId: Number(inserted.lastInsertRowid) };
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  async finishProcessing(attemptId: number, result: VideoProcessingResult | null, error: string | null): Promise<{ status: "processed" | "unchanged" | "failed"; versionId: number | null }> {
+    const db = this.database();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const attempt = db.prepare("SELECT video_id, source_key FROM video_processing_attempts WHERE id = ? AND status = 'processing'")
+        .get(attemptId) as { video_id: string; source_key: string } | undefined;
+      if (!attempt) throw new Error("Active processing attempt not found.");
+      let status: "processed" | "unchanged" | "failed" = result ? "processed" : "failed";
+      let versionId: number | null = null;
+      if (result) {
+        const existing = db.prepare("SELECT id FROM content_versions WHERE video_id = ? AND content_hash = ?")
+          .get(attempt.video_id, result.contentHash) as { id: number } | undefined;
+        if (existing) {
+          status = "unchanged";
+          versionId = existing.id;
+        } else {
+          const version = db.prepare(`INSERT INTO content_versions
+            (video_id, source_key, content_hash, provider, processor_version, result_json, created_at, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'processed')`)
+            .run(attempt.video_id, attempt.source_key, result.contentHash, result.provider,
+              result.processorVersion, JSON.stringify(result), new Date().toISOString());
+          versionId = Number(version.lastInsertRowid);
+        }
+      }
+      const updated = db.prepare("UPDATE youtube_videos SET status = ? WHERE video_id = ? AND source_key = ? AND status = 'processing'")
+        .run(result ? "processed" : "failed", attempt.video_id, attempt.source_key);
+      if (updated.changes !== 1) throw new Error("Video ownership or processing state changed.");
+      if (versionId !== null) {
+        db.prepare("UPDATE youtube_videos SET current_version_id = ? WHERE video_id = ?")
+          .run(versionId, attempt.video_id);
+      }
+      db.prepare(`UPDATE video_processing_attempts SET status = ?, finished_at = ?, result_json = NULL, error = ?, content_version_id = ? WHERE id = ?`)
+        .run(status === "unchanged" ? "processed" : status, new Date().toISOString(), error, versionId, attemptId);
+      db.exec("COMMIT");
+      return { status, versionId };
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  async listProcessingAttempts(videoId: string, sourceKey: string) {
+    return this.database().prepare(`SELECT id, status, started_at AS startedAt,
+      finished_at AS finishedAt, result_json AS resultJson, error,
+      content_version_id AS contentVersionId
+      FROM video_processing_attempts WHERE video_id = ? AND source_key = ? ORDER BY id`)
+      .all(videoId, sourceKey);
+  }
+
+  async listContentVersions(videoId: string, sourceKey: string) {
+    return this.database().prepare(`SELECT id, content_hash AS contentHash,
+      provider, processor_version AS processorVersion, result_json AS resultJson,
+      created_at AS createdAt, status FROM content_versions
+      WHERE video_id = ? AND source_key = ? ORDER BY id`).all(videoId, sourceKey);
   }
 
   async getSource(sourceKey: string): Promise<YouTubeSyncState | null> {
@@ -148,6 +235,27 @@ export class YouTubeSyncStore {
       .run(status, videoId, sourceKey);
 
     return result.changes > 0;
+  }
+
+  async transitionVideoStatus(
+    videoId: string,
+    sourceKey: string,
+    status: "needs-review" | "skipped",
+  ): Promise<"updated" | "not-found" | "conflict"> {
+    const video = this.database().prepare(
+      "SELECT status FROM youtube_videos WHERE video_id = ? AND source_key = ?",
+    ).get(videoId, sourceKey) as { status: string | null } | undefined;
+    if (!video) return "not-found";
+
+    const allowed = status === "needs-review"
+      ? ["discovered", "failed", "skipped"]
+      : ["discovered", "needs-review", "failed"];
+    if (!allowed.includes(video.status ?? "")) return "conflict";
+
+    const result = this.database().prepare(
+      "UPDATE youtube_videos SET status = ? WHERE video_id = ? AND source_key = ? AND status = ?",
+    ).run(status, videoId, sourceKey, video.status);
+    return result.changes === 1 ? "updated" : "conflict";
   }
 
   async upsertSourceAccount(source: UpsertSourceAccountInput): Promise<void> {
@@ -263,23 +371,38 @@ export class YouTubeSyncStore {
       .prepare(
         `
       SELECT
-        video_id AS videoId,
-        title,
-        url,
-        published_at AS publishedAt,
-        discovered_at AS discoveredAt,
-        status
-      FROM youtube_videos
-      WHERE source_key = ?
+        yv.video_id AS videoId,
+        yv.title,
+        yv.url,
+        yv.published_at AS publishedAt,
+        yv.discovered_at AS discoveredAt,
+        yv.status,
+        current_version_id AS currentVersionId,
+        cv.created_at AS processedAt,
+        cv.result_json AS resultJson
+      FROM youtube_videos yv
+      LEFT JOIN content_versions cv ON cv.id = yv.current_version_id
+      WHERE yv.source_key = ?
       ORDER BY
-        published_at DESC,
-        discovered_at DESC,
-        video_id ASC
+        yv.published_at DESC,
+        yv.discovered_at DESC,
+        yv.video_id ASC
       `,
       )
-      .all(sourceKey) as unknown as SourceVideo[];
+      .all(sourceKey) as unknown as Array<Omit<SourceVideo, "claimCount"> & { resultJson: string | null }>;
 
-    return rows;
+    return rows.map(({ resultJson, ...row }) => {
+      let claimCount = 0;
+      if (resultJson) {
+        try {
+          const parsed = JSON.parse(resultJson) as { claims?: unknown[] };
+          claimCount = Array.isArray(parsed.claims) ? parsed.claims.length : 0;
+        } catch {
+          claimCount = 0;
+        }
+      }
+      return { ...row, claimCount };
+    });
   }
 
   async claimVideo(videoId: string, sourceKey: string): Promise<boolean> {
@@ -394,6 +517,39 @@ export class YouTubeSyncStore {
     this.migrateYouTubeVideos();
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS video_processing_attempts (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        source_key TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('processing', 'processed', 'unchanged', 'failed')),
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        result_json TEXT,
+        error TEXT,
+        content_version_id INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS content_versions (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        source_key TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        processor_version TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        UNIQUE(video_id, content_hash)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_video_processing_active
+        ON video_processing_attempts(video_id) WHERE status = 'processing';
+      CREATE INDEX IF NOT EXISTS idx_video_processing_history
+        ON video_processing_attempts(video_id, source_key, id);
+    `);
+
+    this.migrateProcessingSchema();
+    this.recoverInterruptedProcessing();
+
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS
         idx_youtube_videos_published_at
         ON youtube_videos(published_at);
@@ -402,6 +558,43 @@ export class YouTubeSyncStore {
         idx_youtube_videos_source_key
         ON youtube_videos(source_key);
     `);
+  }
+
+  private migrateProcessingSchema(): void {
+    if (!this.db) return;
+    const videoColumns = this.db.prepare("PRAGMA table_info(youtube_videos)").all() as unknown as Array<{ name: string }>;
+    if (!videoColumns.some(column => column.name === "current_version_id")) {
+      this.db.exec("ALTER TABLE youtube_videos ADD COLUMN current_version_id INTEGER");
+    }
+    const attemptColumns = this.db.prepare("PRAGMA table_info(video_processing_attempts)").all() as unknown as Array<{ name: string }>;
+    if (!attemptColumns.some(column => column.name === "content_version_id")) {
+      this.db.exec("ALTER TABLE video_processing_attempts ADD COLUMN content_version_id INTEGER");
+    }
+  }
+
+  private recoverInterruptedProcessing(): void {
+    if (!this.db) return;
+    const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const finishedAt = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.prepare(`UPDATE youtube_videos AS yv SET status = 'failed'
+        WHERE status = 'processing' AND EXISTS (
+          SELECT 1 FROM video_processing_attempts AS attempt
+          WHERE attempt.video_id = yv.video_id
+            AND attempt.source_key = yv.source_key
+            AND attempt.status = 'processing'
+            AND attempt.started_at < ?
+        )`).run(cutoff);
+      this.db.prepare(`UPDATE video_processing_attempts
+        SET status = 'failed', finished_at = ?,
+          error = 'Processing was interrupted before completion. It can be retried.'
+        WHERE status = 'processing' AND started_at < ?`).run(finishedAt, cutoff);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   private migrateYouTubeVideos(): void {

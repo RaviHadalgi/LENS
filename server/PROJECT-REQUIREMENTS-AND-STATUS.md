@@ -1,0 +1,188 @@
+# LENS Server Requirements and Implementation Status
+
+Last reconciled: 24 November 2026
+
+This document reconciles the LENS product specification, technical architecture, development checkpoint, and implementation trackers with the server code that exists today. The shared Word documents describe product intent and earlier plans; the checked-in code is the authority for current behavior.
+
+Client status is documented separately in [`../client/PROJECT-REQUIREMENTS-AND-STATUS.md`](../client/PROJECT-REQUIREMENTS-AND-STATUS.md).
+
+## Maintenance rule
+
+Every user-requested server, API, data-model, ingestion, processing, retrieval, security, or operational change must update this file in the same change. Update the affected requirement status, implemented behavior, limitations, roadmap, verification evidence, and `Last reconciled` date, then add a concise entry to **Change history**. Cross-cutting changes must also update the client status document. The repository-wide rule is defined in [`../AGENTS.md`](../AGENTS.md).
+
+## Status legend
+
+| Status | Meaning |
+| --- | --- |
+| **Implemented** | Present in the current server and covered by the normal verification suite. |
+| **Partial** | A useful foundation exists, but the full product requirement is not complete. |
+| **Not implemented** | Required by the product documents but no working server capability exists yet. |
+
+## Product and architecture requirements
+
+### Product boundaries
+
+| Requirement from the shared documents | Status | Current server behavior | Remaining work |
+| --- | --- | --- | --- |
+| Local-first personal knowledge and perspective engine | **Partial** | Source inventory and processing results are stored in a local SQLite database. | Build the knowledge, retrieval, review, user-state, and export layers. |
+| Knowledge-first storage instead of a media archive | **Implemented** | The server stores URLs, metadata, transcript-derived source statements, hashes, and processing records. It does not download or retain original video/audio. | Add richer provenance and normalized knowledge entities without changing this boundary. |
+| Preserve source wording, context, uncertainty, and provenance | **Partial** | User-supplied transcript segments are stored verbatim as source statements with language context and optional timestamps. | Store structured provenance per statement, preserve ambiguity explicitly, and separate later LENS synthesis from source material. |
+| Keep source statements, LENS interpretation, and user judgment separate | **Partial** | The processing adapter produces only source statements and does not fabricate summaries. | Add separate stores and APIs for interpretations, verification, user classifications, notes, and conclusions. |
+| Avoid inventing creator credentials or identity claims | **Implemented** | Creator identity is returned as a conservative `needs-review` draft based on public source metadata. | Add reviewed creator records and evidence-backed identity fields. |
+| Local ownership, export, and deletion | **Partial** | Data is local by default. | Add Markdown/JSON export, backup, restore, source deletion, full account deletion, and data-retention controls. |
+
+### Source ingestion and inventory
+
+| Requirement from the shared documents | Status | Current server behavior | Remaining work |
+| --- | --- | --- | --- |
+| Accept YouTube channel, playlist, and video URLs | **Partial** | URL analysis detects channel, playlist, and video forms. | Implement inventory/sync for playlist and individual-video sources. |
+| Analyze source metadata before saving | **Partial** | Public YouTube page metadata and video oEmbed data are used when available. Invalid and unsupported inputs are rejected. | Improve metadata reliability, caching, rate handling, and evidence attribution. |
+| Support channel handles, IDs, custom URLs, and usernames | **Partial** | Common URL forms are detected. Canonical channel IDs are the reliable RSS sync path; other forms depend on public page resolution and can remain `needs-review`. | Add a robust channel-resolution flow with explicit user correction. |
+| Backfill full channel, selected playlists, recent content, or specific videos | **Partial** | Recent channel videos can be discovered from YouTube's public Atom feed. | Implement the selected backfill mode, full history pagination, playlist ingestion, and specific-video import. |
+| Stable external identity and duplicate prevention | **Implemented** | YouTube video ID is the stable content key. Existing videos are skipped during sync and the feed scan stops at known content. | Extend duplicate handling across playlists, direct video imports, and changed metadata. |
+| Source library and per-source content inventory | **Implemented** | SQLite stores source accounts and discovered videos; APIs list both with counts and current processing information. | Add filtering, pagination, archival/deletion, and richer source health data. |
+| Lightweight recurring monitoring | **Partial** | A channel sync can be triggered manually and stores last-check and last-success timestamps. | Add a scheduler, configurable cadence, background execution, notifications, and failure recovery. |
+
+### Processing lifecycle and versioning
+
+| Requirement from the shared documents | Status | Current server behavior | Remaining work |
+| --- | --- | --- | --- |
+| Track discovered, queued, processing, processed, skipped, needs-review, and failed states | **Partial** | The persisted lifecycle supports `discovered`, `processing`, `processed`, `skipped`, `needs-review`, and `failed`. State changes enforce ownership and valid transitions. | Add a real queued state and background worker. |
+| Prevent concurrent processing of the same item | **Implemented** | Processing begins inside a SQLite immediate transaction and rejects an active attempt or invalid source state. | Move the same guarantee into a future job queue. |
+| Record processing attempts and safe errors | **Implemented** | Each attempt stores start/end time, status, content-version link, and a sanitized error. Provider details and transcript content are not leaked in stored errors. | Add operational inspection APIs and structured failure categories. |
+| Recover from interrupted work | **Implemented** | Stale `processing` attempts are recovered after the configured 15-minute threshold. | Make timeout configurable and add worker heartbeat/lease semantics. |
+| Retry failed or reviewed content | **Implemented** | Failed, processed, or needs-review content can enter processing; manual status changes cannot overwrite active or completed processing. | Add explicit retry policies, limits, and operator history. |
+| Detect unchanged content and version changed content | **Implemented** | Canonical transcript input is SHA-256 hashed. An existing hash reuses its version and returns `unchanged`; a changed hash creates a new immutable content version and updates the video's current version. | Add version comparison and rollback APIs, and version metadata for future providers. |
+| Keep a content-version history | **Implemented** | `content_versions` records provider, processor version, hash, serialized result, creation time, and status. | Expose history through supported APIs and migrate serialized results into normalized knowledge tables. |
+
+### Transcript, segmentation, and knowledge extraction
+
+| Requirement from the shared documents | Status | Current server behavior | Remaining work |
+| --- | --- | --- | --- |
+| Acquire transcripts where permitted | **Partial** | The process endpoint accepts a user-supplied transcript. It does not scrape transcripts or download media. | Add a permitted transcript-provider adapter with explicit availability and policy handling. |
+| Segment long-form content with timestamps | **Partial** | The API accepts up to 2,000 segments, optional start/end seconds, and validates timestamp order. | Add automatic topic segmentation, segment editing, overlap/context handling, and reliable timestamps. |
+| Extract claims while preserving the original statement | **Partial** | Each submitted transcript segment becomes one verbatim source statement in the processing result. | Add normalized claim extraction, claim boundaries, evidence type, confidence, and human review. |
+| Preserve ambiguous claims and possible interpretations | **Not implemented** | No interpretation layer exists yet. | Add ambiguity flags and separately stored possible interpretations without overwriting the original. |
+| Classify claim/evidence type and perspective | **Not implemented** | No semantic classifier or model call is present. | Add conservative, reviewable classifiers for claim type, evidence type, creator perspective, and context. |
+| Identify concepts and relationships | **Not implemented** | No concept or relationship graph is stored. | Add Concept, SharedTheme, and Relationship entities with provenance. |
+| Compare with existing knowledge | **Not implemented** | Processing does not retrieve prior knowledge. | Add retrieval and comparison before classification. |
+| Classify repeat, reinforcement, refinement, new perspective, contradiction, and new concept | **Not implemented** | No novelty classification exists. | Implement evidence-backed novelty classification and confidence/review rules. |
+| Track recurring creator positions and their evolution | **Not implemented** | Content versions exist, but creator-position history does not. | Add creator claim timelines, change detection, and versioned summaries. |
+
+### Retrieval, review, and personal knowledge
+
+| Requirement from the shared documents | Status | Current server behavior | Remaining work |
+| --- | --- | --- | --- |
+| Retrieval-first Ask service | **Not implemented** | There is no query, retrieval, ranking, or answer API. | Implement local retrieval, intent parsing, scoped context assembly, and cited synthesis. |
+| Ask modes: quick, deep, compare, source-only, evidence, timeline, conflicts, decision support | **Not implemented** | No server support exists. | Add explicit query modes and mode-specific response contracts. |
+| Explain “Why am I seeing this?” | **Not implemented** | No retrieval trace is available. | Return source, match reason, ranking signal, and provenance with each answer item. |
+| Review queue | **Not implemented** | `needs-review` exists as a video status only; there is no ReviewItem entity or queue API. | Add review reasons, priority, decisions, and audit history. |
+| User knowledge states | **Not implemented** | No UserKnowledge entity exists. | Add the specified states: already know, know/do, know/not consistently apply, new, irrelevant, disagree, explore, and remember. |
+| Personal notes, goals, actions, and conclusions | **Not implemented** | No personal-state entities or APIs exist. | Store these separately from source knowledge with history and provenance. |
+| External research as a separate source class | **Not implemented** | Only YouTube source analysis exists. | Add web/document research with a distinct store and clear labeling. |
+| Life-event and reflective analytics data | **Not implemented** | No LifeEvent or analytics model exists. | Add user-controlled observations with observed/user-reported/estimated/AI provenance and no scoring. |
+
+### Safety, operations, and cost controls
+
+| Requirement from the shared documents | Status | Current server behavior | Remaining work |
+| --- | --- | --- | --- |
+| Validate untrusted input | **Implemented** | Request and transcript data are validated; transcript segment count, segment size, total size, and timestamp ordering are bounded. | Apply the same approach to all future endpoints. |
+| Protect ownership during updates | **Implemented** | Video operations require both source key and video ID, and transactional completion verifies the active processing state. | Add user-level authorization if the app becomes multi-user or remotely accessible. |
+| Secure secrets | **Partial** | Current ingestion uses public endpoints and introduces no provider secret. | Add secure secret storage before any authenticated provider or model integration. |
+| Authentication and remote-access security | **Not implemented** | The local Express service has no authentication and uses permissive CORS defaults. | Keep the service loopback-only by default or add authentication, origin restrictions, and transport security. |
+| Cost-aware processing | **Partial** | No paid model or media processing is invoked; unchanged transcript input is deduplicated. | Add budgets, usage accounting, caching, model selection, and explicit consent before paid processing. |
+| Backup and Google Drive export | **Not implemented** | No backup connector or export job exists. | Implement local export first, then optional user-authorized Drive backup. |
+
+## Implemented server surface
+
+### HTTP API
+
+| Method and route | Current purpose |
+| --- | --- |
+| `GET /api/health` | Basic service health response. |
+| `GET /api/sources` | Lists saved source accounts with content counts and sync state. |
+| `POST /api/sources/analyze` | Detects a YouTube URL type and returns available metadata plus a reviewable creator identity draft. |
+| `POST /api/sources/youtube/sync` | Resolves and syncs a YouTube channel's recent public feed into the local inventory. |
+| `GET /api/sources/:sourceKey/videos` | Lists a source's discovered videos, current version, processed time, and source-statement count. |
+| `PATCH /api/sources/:sourceKey/videos/:videoId/status` | Applies the allowed manual transitions to `needs-review` or `skipped`. |
+| `POST /api/sources/:sourceKey/videos/:videoId/process` | Validates a supplied transcript, runs the processing adapter, and creates or reuses a content version. |
+
+The process request is synchronous. There is currently no job-status, processing-history, content-version-history, claim, search, Ask, review, export, or settings endpoint.
+
+### Persisted data
+
+| Current table | What it stores |
+| --- | --- |
+| `source_accounts` | Platform/source identity, URL, review state, sync timestamps, and audit timestamps. |
+| `youtube_videos` | Stable YouTube ID, source ownership, metadata, workflow status, and current content-version reference. |
+| `video_processing_attempts` | Processing ownership, state, timing, safe error, and content-version reference. |
+| `content_versions` | Immutable content hash, adapter/provider, processor version, serialized source statements, and creation state. |
+
+The architecture documents also call for Creator, ContentItem, Segment, Claim, Concept, SharedTheme, Relationship, UserKnowledge, PersonalNote, Goal, Action, Conclusion, Provenance, ReviewItem, LifeEvent, and richer ProcessingLog models. Those normalized entities are not yet present.
+
+## Current processing flow
+
+1. Analyze a YouTube URL and obtain conservative metadata.
+2. Sync a channel's recent Atom feed into the local video inventory.
+3. Move a discovered video to `needs-review`, or skip it.
+4. Submit a transcript divided into one or more segments.
+5. Validate text size and optional timestamps.
+6. Acquire transactional processing ownership and record an attempt.
+7. Canonicalize and hash the transcript.
+8. Preserve every segment as a source statement; no summary or inferred claim is invented.
+9. Reuse the matching content version or create a new immutable version.
+10. Mark the video processed, expose the current version and statement count, and retain retry/audit data.
+
+This covers the ingestion and safe-processing foundation. It does not yet perform the architecture's semantic extraction, knowledge comparison, graph updates, retrieval indexing, or notification steps.
+
+## Current limitations
+
+- Only recent YouTube channel feed sync is operational; playlist, direct-video, full-history, and selected-backfill workflows are incomplete.
+- Transcript input is manual. There is no transcript provider, media download, speech-to-text, or caption availability check.
+- Paragraphs/segments are preserved as source statements, not normalized semantic claims.
+- No model is used for segmentation, perspective classification, novelty, contradiction detection, synthesis, or verification.
+- Processing runs inside the request instead of a durable background queue.
+- Content-version and attempt histories are stored but not exposed through public API routes.
+- The SQLite result payload is serialized JSON; normalized Claim, Segment, Provenance, Concept, and Relationship tables are still needed.
+- There is no search index, embedding store, knowledge graph, Ask service, or retrieval trace.
+- There is no review queue, user knowledge state, personal history, external research store, or Life data layer.
+- There is no authentication, per-user boundary, restricted CORS policy, export/delete service, backup, monitoring dashboard, or notification system.
+- The service URL/port and operational configuration are still development-oriented.
+
+## Future enhancement order
+
+1. **Finish ingestion breadth:** support playlist and direct-video sources, make backfill selection real, add pagination/full history, and improve channel resolution.
+2. **Add permitted transcript acquisition:** introduce a provider interface, availability/error states, timestamps, language handling, and user correction while retaining manual paste as fallback.
+3. **Normalize the knowledge model:** persist Segment, Claim, Provenance, Creator, Concept, Relationship, ProcessingLog, and ReviewItem records instead of relying on result JSON.
+4. **Implement semantic processing:** topic segmentation, original/normalized claim pairs, context, evidence type, perspective, confidence, ambiguity, and conservative verification.
+5. **Compare new knowledge:** retrieve relevant prior claims and classify repeat, reinforcement, refinement, new perspective, contradiction, and new concept.
+6. **Build review workflows:** queue uncertain identity, metadata, claims, conflicts, missing evidence, and failed content for explicit user decisions.
+7. **Implement Ask:** intent parsing, local retrieval, query modes, cited synthesis, source-only responses, comparison, timelines, conflict views, and “Why am I seeing this?” traces.
+8. **Add personal knowledge:** user knowledge states, notes, goals, actions, conclusions, and versioned user history in separate tables.
+9. **Add background operation:** durable queue, worker leases, scheduled source monitoring, notifications, retry policies, and observability.
+10. **Complete data ownership:** Markdown/JSON export, deletion, backup/restore, optional Google Drive backup, secure secrets, and production access controls.
+11. **Add external research and Life data:** retain distinct provenance and keep reflective analytics descriptive rather than scored.
+
+## Verification evidence
+
+At this reconciliation point:
+
+- The server test suite passes: **32 tests**.
+- Tests cover source analysis/sync foundations, persistence, state transitions, ownership, processing success/failure, idempotent unchanged content, changed-content versioning, retry, concurrent-attempt prevention, stale-attempt recovery, and transcript validation.
+- The default SQLite file is `server/data/youtube-sync.sqlite`; runtime data is excluded from version control.
+
+## Change history
+
+| Date | Change recorded | Requirement/limitation impact | Verification |
+| --- | --- | --- | --- |
+| 24 November 2026 | Reconciled all five shared LENS documents with the current server; documented source ingestion, SQLite inventory, transcript processing, content versioning, retry, ownership, and stale-attempt recovery. Added the mandatory documentation-maintenance rule. | Requirements are now classified as Implemented, Partial, or Not implemented. Automatic transcript acquisition, semantic knowledge extraction, retrieval, review, personal knowledge, background monitoring, export, and production access controls remain future work. | Server build and all 32 server tests passed. Documentation consistency check passed. |
+
+## Source documents reconciled
+
+- `LENS_Product_Concept_and_V1_Specification.docx`
+- `LENS_Technical_Architecture_V1_final.docx`
+- `LENS_Development_Prompts_and_Checkpoint.docx`
+- `LENS_Implementation_Progress_Tracker_2026-08-30.docx`
+- `LENS_Implementation_Tracker_2026-08-31.docx`
+
+The early architecture proposed possible Python/FastAPI and React choices. The implemented project currently uses TypeScript, Express, Node's SQLite API, and an Angular client. This document records that implemented stack while preserving the product and data-design requirements that remain applicable.

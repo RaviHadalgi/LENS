@@ -74,6 +74,10 @@ export class SourcesPage implements OnInit {
   private readonly api = inject(LensApiService);
   private readonly changeDetector = inject(ChangeDetectorRef);
   readonly updatingVideoIds = new Set<string>();
+  processingVideoId: string | null = null;
+  processingTranscript = '';
+  processingError = '';
+  readonly processingSummaries = new Map<string, string>();
 
   selectedBackfill: 'recent' | 'playlists' | 'all' | 'selected' = 'recent';
 
@@ -108,7 +112,7 @@ export class SourcesPage implements OnInit {
     });
   }
 
-  updateSourceVideoStatus(video: SourceVideo, status: NonNullable<SourceVideo['status']>): void {
+  updateSourceVideoStatus(video: SourceVideo, status: 'needs-review' | 'skipped'): void {
     const source = this.selectedSource;
 
     if (!source || this.updatingVideoIds.has(video.videoId)) {
@@ -133,26 +137,54 @@ export class SourcesPage implements OnInit {
     });
   }
 
+  openVideoProcessing(video: SourceVideo): void {
+    this.processingVideoId = video.videoId;
+    this.processingTranscript = '';
+    this.processingError = '';
+  }
+
+  cancelVideoProcessing(): void {
+    this.processingVideoId = null;
+    this.processingTranscript = '';
+    this.processingError = '';
+  }
+
   processSourceVideo(video: SourceVideo): void {
     const source = this.selectedSource;
 
-    if (!source || this.updatingVideoIds.has(video.videoId)) {
+    const transcript = this.processingTranscript.trim();
+
+    if (!source || !transcript || this.updatingVideoIds.has(video.videoId)) {
+      this.processingError = transcript ? '' : 'Paste the available transcript or source text first.';
       return;
     }
 
     this.updatingVideoIds.add(video.videoId);
     this.changeDetector.detectChanges();
 
-    this.api.processSourceVideo(source.sourceKey, video.videoId).subscribe({
-      next: () => {
-        video.status = 'processing';
+    this.processingError = '';
+    this.api.processSourceVideo(source.sourceKey, video.videoId, transcript).subscribe({
+      next: (result) => {
+        video.status = 'processed';
+        video.currentVersionId = result.versionId;
+        video.claimCount = result.claimCount;
+        video.processedAt = new Date().toISOString();
+        this.processingSummaries.set(
+          video.videoId,
+          result.status === 'unchanged'
+            ? 'No content change found. The existing version was kept.'
+            : `${result.claimCount} source ${result.claimCount === 1 ? 'statement' : 'statements'} saved as version ${result.versionId}.`,
+        );
         this.updatingVideoIds.delete(video.videoId);
+        this.processingVideoId = null;
+        this.processingTranscript = '';
         this.changeDetector.detectChanges();
       },
 
       error: (error) => {
-        console.error('Failed to start source video processing:', error);
-
+        console.error('Failed to process source video:', error);
+        video.status = error?.status === 422 ? 'failed' : video.status;
+        this.processingError = error?.error?.message ?? 'LENS could not process this transcript.';
         this.updatingVideoIds.delete(video.videoId);
         this.changeDetector.detectChanges();
       },

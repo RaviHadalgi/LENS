@@ -15,11 +15,13 @@ describe('SourcesPage', () => {
     syncYouTubeChannel: vi.fn(),
     listSourceVideos: vi.fn(),
     updateSourceVideoStatus: vi.fn(),
+    processSourceVideo: vi.fn(),
   };
 
   beforeEach(async () => {
     apiMock.syncYouTubeChannel.mockReset();
     apiMock.listSourceVideos.mockReset();
+    apiMock.processSourceVideo.mockReset();
     apiMock.syncYouTubeChannel.mockReturnValue(
       of({
         platform: 'youtube',
@@ -364,7 +366,7 @@ describe('SourcesPage', () => {
     expect(component.sourceVideosLoading).toBe(false);
   });
 
-  it('updates a source video processing status', () => {
+  it('moves discovered source video to review', () => {
     const source = {
       name: 'test',
       perspective: 'YouTube source',
@@ -381,6 +383,9 @@ describe('SourcesPage', () => {
       publishedAt: '2026-08-30T00:00:00.000Z',
       discoveredAt: '2026-08-30T01:00:00.000Z',
       status: 'discovered' as const,
+      currentVersionId: null,
+      processedAt: null,
+      claimCount: 0,
     };
 
     component.sources = [source];
@@ -391,16 +396,48 @@ describe('SourcesPage', () => {
       of({
         sourceKey: source.sourceKey,
         videoId: video.videoId,
-        status: 'processed',
+        status: 'needs-review',
       }),
     );
 
-    component.updateSourceVideoStatus(video, 'processed');
+    component.updateSourceVideoStatus(video, 'needs-review');
 
     expect(apiMock.updateSourceVideoStatus).toHaveBeenCalledWith(
       source.sourceKey,
       video.videoId,
-      'processed',
+      'needs-review',
     );
+  });
+
+  it('processes pasted transcript and records the saved result', () => {
+    const source = {
+      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
+      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+    };
+    const video = {
+      videoId: 'VIDEO-123', title: 'Test video',
+      url: 'https://youtube.com/watch?v=VIDEO-123', publishedAt: null,
+      discoveredAt: null, status: 'needs-review' as const,
+      currentVersionId: null, processedAt: null, claimCount: 0,
+    };
+    component.selectedSource = source;
+    component.sourceVideos = [video];
+    component.openVideoProcessing(video);
+    component.processingTranscript = 'First source statement.\n\nSecond source statement.';
+    apiMock.processSourceVideo.mockReturnValue(of({
+      sourceKey: source.sourceKey, videoId: video.videoId, status: 'processed',
+      attemptId: 1, versionId: 1, claimCount: 2,
+    }));
+
+    component.processSourceVideo(video);
+
+    expect(apiMock.processSourceVideo).toHaveBeenCalledWith(
+      source.sourceKey,
+      video.videoId,
+      'First source statement.\n\nSecond source statement.',
+    );
+    expect(video.status).toBe('processed');
+    expect(component.processingSummaries.get(video.videoId)).toContain('2 source statements');
+    expect(component.processingVideoId).toBeNull();
   });
 });
