@@ -79,6 +79,10 @@ export class SourcesPage implements OnInit {
   processingTranscript = '';
   processingError = '';
   readonly processingSummaries = new Map<string, string>();
+  readonly expandedTranscriptVideoIds = new Set<string>();
+  videoPendingTranscriptDeletion: SourceVideo | null = null;
+  deletingTranscript = false;
+  deleteTranscriptError = '';
 
   selectedBackfill: 'recent' | 'playlists' | 'all' | 'selected' = 'recent';
 
@@ -147,7 +151,7 @@ export class SourcesPage implements OnInit {
 
   openVideoProcessing(video: SourceVideo): void {
     this.processingVideoId = video.videoId;
-    this.processingTranscript = '';
+    this.processingTranscript = video.sourceStatements.map((statement) => statement.text).join('\n\n');
     this.processingError = '';
   }
 
@@ -225,6 +229,74 @@ export class SourcesPage implements OnInit {
     return language && language !== 'und' ? `Language: ${language.toUpperCase()}` : null;
   }
 
+  toggleTranscript(videoId: string): void {
+    if (this.expandedTranscriptVideoIds.has(videoId)) {
+      this.expandedTranscriptVideoIds.delete(videoId);
+    } else {
+      this.expandedTranscriptVideoIds.add(videoId);
+    }
+
+    this.changeDetector.detectChanges();
+  }
+
+  isTranscriptExpanded(videoId: string): boolean {
+    return this.expandedTranscriptVideoIds.has(videoId);
+  }
+
+  openDeleteTranscriptConfirmation(video: SourceVideo): void {
+    this.videoPendingTranscriptDeletion = video;
+    this.deleteTranscriptError = '';
+  }
+
+  cancelDeleteTranscript(): void {
+    if (this.deletingTranscript) {
+      return;
+    }
+
+    this.videoPendingTranscriptDeletion = null;
+    this.deleteTranscriptError = '';
+  }
+
+  confirmDeleteTranscript(): void {
+    const source = this.selectedSource;
+    const video = this.videoPendingTranscriptDeletion;
+
+    if (!source || !video || this.deletingTranscript) {
+      return;
+    }
+
+    this.deletingTranscript = true;
+    this.deleteTranscriptError = '';
+
+    this.api.deleteSourceVideoTranscript(source.sourceKey, video.videoId).subscribe({
+      next: () => {
+        video.status = 'needs-review';
+        video.currentVersionId = null;
+        video.processedAt = null;
+        video.claimCount = 0;
+        video.sourceStatements = [];
+        this.processingSummaries.delete(video.videoId);
+        this.expandedTranscriptVideoIds.delete(video.videoId);
+
+        if (this.processingVideoId === video.videoId) {
+          this.cancelVideoProcessing();
+        }
+
+        this.deletingTranscript = false;
+        this.videoPendingTranscriptDeletion = null;
+        this.changeDetector.detectChanges();
+      },
+
+      error: (error) => {
+        console.error('Failed to delete saved transcript:', error);
+        this.deletingTranscript = false;
+        this.deleteTranscriptError =
+          error?.error?.message ?? 'LENS could not delete this transcript. Please try again.';
+        this.changeDetector.detectChanges();
+      },
+    });
+  }
+
   private loadSources(): void {
     this.sourcesLoading = true;
     this.sourcesError = '';
@@ -287,6 +359,9 @@ export class SourcesPage implements OnInit {
     this.sourceVideosError = '';
     this.fetchLatestMessage = '';
     this.fetchLatestError = '';
+    this.expandedTranscriptVideoIds.clear();
+    this.cancelVideoProcessing();
+    this.cancelDeleteTranscript();
 
     this.api
       .listSourceVideos(source.sourceKey)
@@ -400,6 +475,8 @@ export class SourcesPage implements OnInit {
           this.sourceVideosLoading = false;
           this.cancelVideoProcessing();
           this.processingSummaries.clear();
+          this.expandedTranscriptVideoIds.clear();
+          this.cancelDeleteTranscript();
         }
 
         this.deletingSource = false;

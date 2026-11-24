@@ -50,6 +50,13 @@ export interface DeletedSourceData {
   deletedContentVersions: number;
 }
 
+export interface DeletedVideoTranscriptData {
+  sourceKey: string;
+  videoId: string;
+  deletedProcessingAttempts: number;
+  deletedContentVersions: number;
+}
+
 export class YouTubeSyncStore {
   private readonly filePath: string;
   private db: DatabaseSync | null = null;
@@ -262,6 +269,57 @@ export class YouTubeSyncStore {
       return {
         sourceKey,
         deletedVideos: Number(videos.changes),
+        deletedProcessingAttempts: Number(processingAttempts.changes),
+        deletedContentVersions: Number(contentVersions.changes),
+      };
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  async deleteVideoTranscript(
+    videoId: string,
+    sourceKey: string,
+  ): Promise<DeletedVideoTranscriptData | null> {
+    const db = this.database();
+    db.exec("BEGIN IMMEDIATE");
+
+    try {
+      const video = db
+        .prepare(
+          "SELECT 1 FROM youtube_videos WHERE video_id = ? AND source_key = ? AND current_version_id IS NOT NULL",
+        )
+        .get(videoId, sourceKey);
+
+      if (!video) {
+        db.exec("COMMIT");
+        return null;
+      }
+
+      const processingAttempts = db
+        .prepare("DELETE FROM video_processing_attempts WHERE video_id = ? AND source_key = ?")
+        .run(videoId, sourceKey);
+      const contentVersions = db
+        .prepare("DELETE FROM content_versions WHERE video_id = ? AND source_key = ?")
+        .run(videoId, sourceKey);
+      const updatedVideo = db
+        .prepare(
+          `UPDATE youtube_videos
+           SET current_version_id = NULL, status = 'needs-review'
+           WHERE video_id = ? AND source_key = ?`,
+        )
+        .run(videoId, sourceKey);
+
+      if (updatedVideo.changes !== 1) {
+        throw new Error("Video ownership changed during transcript deletion.");
+      }
+
+      db.exec("COMMIT");
+
+      return {
+        sourceKey,
+        videoId,
         deletedProcessingAttempts: Number(processingAttempts.changes),
         deletedContentVersions: Number(contentVersions.changes),
       };

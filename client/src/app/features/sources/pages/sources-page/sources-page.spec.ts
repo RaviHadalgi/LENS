@@ -20,6 +20,7 @@ describe('SourcesPage', () => {
     listSourceVideos: vi.fn(),
     updateSourceVideoStatus: vi.fn(),
     processSourceVideo: vi.fn(),
+    deleteSourceVideoTranscript: vi.fn(),
     deleteSource: vi.fn(),
   };
 
@@ -28,6 +29,7 @@ describe('SourcesPage', () => {
     apiMock.syncSource.mockReset();
     apiMock.listSourceVideos.mockReset();
     apiMock.processSourceVideo.mockReset();
+    apiMock.deleteSourceVideoTranscript.mockReset();
     apiMock.deleteSource.mockReset();
     apiMock.syncYouTubeChannel.mockReturnValue(
       of({
@@ -378,8 +380,15 @@ describe('SourcesPage', () => {
     expect(component.sourceVideos[0]?.videoId).toBe('VIDEO-1');
     expect(component.sourceVideosLoading).toBe(false);
     fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Saved transcript statement.');
+    expect(fixture.nativeElement.textContent).toContain('View transcript / summary');
+    component.toggleTranscript('VIDEO-1');
+    fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Saved transcript statement.');
     expect(fixture.nativeElement.textContent).toContain('0:12–0:18');
+    component.toggleTranscript('VIDEO-1');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain('Saved transcript statement.');
   });
 
   it('fetches latest content for a saved source and refreshes its inventory', () => {
@@ -532,6 +541,53 @@ describe('SourcesPage', () => {
       'Second source statement.',
     ]);
     expect(component.processingSummaries.get(video.videoId)).toContain('2 source statements');
+    expect(component.processingVideoId).toBeNull();
+  });
+
+  it('modifies from the saved text and deletes a confirmed transcript', () => {
+    const source = {
+      name: 'test', perspective: 'YouTube source', status: 'verified' as const,
+      contentCount: 1, conceptCount: 0, sourceKey: 'youtube:channel-id:test',
+    };
+    const video: SourceVideo = {
+      videoId: 'VIDEO-123', title: 'Test video',
+      url: 'https://youtube.com/watch?v=VIDEO-123', publishedAt: null,
+      discoveredAt: null, status: 'processed', currentVersionId: 4,
+      processedAt: '2026-11-24T00:00:00.000Z', claimCount: 2,
+      sourceStatements: [
+        { text: 'First saved statement.', context: '', startSeconds: null, endSeconds: null },
+        { text: 'Second saved statement.', context: '', startSeconds: null, endSeconds: null },
+      ],
+    };
+    component.selectedSource = source;
+    component.sourceVideos = [video];
+    component.processingSummaries.set(video.videoId, 'Saved.');
+    component.expandedTranscriptVideoIds.add(video.videoId);
+
+    component.openVideoProcessing(video);
+
+    expect(component.processingTranscript).toBe(
+      'First saved statement.\n\nSecond saved statement.',
+    );
+
+    component.openDeleteTranscriptConfirmation(video);
+    apiMock.deleteSourceVideoTranscript.mockReturnValue(of({
+      status: 'deleted', sourceKey: source.sourceKey, videoId: video.videoId,
+      deletedProcessingAttempts: 2, deletedContentVersions: 1,
+    }));
+
+    component.confirmDeleteTranscript();
+
+    expect(apiMock.deleteSourceVideoTranscript).toHaveBeenCalledWith(
+      source.sourceKey,
+      video.videoId,
+    );
+    expect(video.status).toBe('needs-review');
+    expect(video.currentVersionId).toBeNull();
+    expect(video.sourceStatements).toEqual([]);
+    expect(component.processingSummaries.has(video.videoId)).toBe(false);
+    expect(component.expandedTranscriptVideoIds.has(video.videoId)).toBe(false);
+    expect(component.videoPendingTranscriptDeletion).toBeNull();
     expect(component.processingVideoId).toBeNull();
   });
 

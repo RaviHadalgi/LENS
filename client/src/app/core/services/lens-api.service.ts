@@ -179,6 +179,14 @@ export interface DeleteSourceResponse {
   deletedContentVersions: number;
 }
 
+export interface DeleteVideoTranscriptResponse {
+  status: 'deleted';
+  sourceKey: string;
+  videoId: string;
+  deletedProcessingAttempts: number;
+  deletedContentVersions: number;
+}
+
 export interface ProcessVideoResponse {
   sourceKey: string;
   videoId: string;
@@ -254,6 +262,15 @@ export class LensApiService {
   listSourceVideos(sourceKey: string): Observable<ListSourceVideosResponse> {
     return this.http.get<ListSourceVideosResponse>(
       `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos`,
+    );
+  }
+
+  deleteSourceVideoTranscript(
+    sourceKey: string,
+    videoId: string,
+  ): Observable<DeleteVideoTranscriptResponse> {
+    return this.http.delete<DeleteVideoTranscriptResponse>(
+      `${this.baseUrl}/sources/${encodeURIComponent(sourceKey)}/videos/${encodeURIComponent(videoId)}/transcript`,
     );
   }
 

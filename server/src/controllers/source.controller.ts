@@ -187,6 +187,52 @@ export async function listSourceVideos(
   });
 }
 
+export async function deleteSourceVideoTranscript(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const sourceKey = req.params["sourceKey"];
+  const videoId = req.params["videoId"];
+
+  if (
+    typeof sourceKey !== "string" ||
+    sourceKey.length === 0 ||
+    typeof videoId !== "string" ||
+    videoId.length === 0
+  ) {
+    res.status(400).json({
+      status: "invalid",
+      message: "A source key and video ID are required.",
+    });
+    return;
+  }
+
+  const source = await youtubeSyncStore.getSourceAccount(sourceKey);
+
+  if (!source) {
+    res.status(404).json({
+      status: "not-found",
+      message: "Source not found.",
+    });
+    return;
+  }
+
+  const deleted = await youtubeSyncStore.deleteVideoTranscript(videoId, sourceKey);
+
+  if (!deleted) {
+    res.status(404).json({
+      status: "not-found",
+      message: "No saved transcript was found for this video.",
+    });
+    return;
+  }
+
+  res.status(200).json({
+    status: "deleted",
+    ...deleted,
+  });
+}
+
 export async function updateSourceVideoStatus(
   req: Request,
   res: Response,

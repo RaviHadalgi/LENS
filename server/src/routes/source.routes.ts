@@ -3,6 +3,7 @@ import { Router } from "express";
 import {
   analyzeSource,
   deleteSource,
+  deleteSourceVideoTranscript,
   listSources,
   listSourceVideos,
   processSourceVideo,
@@ -19,6 +20,7 @@ router.post("/youtube/sync", syncYouTubeChannel);
 router.delete("/:sourceKey", deleteSource);
 router.post("/:sourceKey/sync", syncSavedSource);
 router.get("/:sourceKey/videos", listSourceVideos);
+router.delete("/:sourceKey/videos/:videoId/transcript", deleteSourceVideoTranscript);
 router.patch("/:sourceKey/videos/:videoId/status", updateSourceVideoStatus);
 router.post("/:sourceKey/videos/:videoId/process", processSourceVideo);
 

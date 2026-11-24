@@ -48,6 +48,20 @@ test("persists successful results, timestamps and audit history across reopen", 
   assert.equal(unchanged.status, "unchanged");
   assert.equal((await store.listProcessingAttempts("video-a", "source-a")).length, 2);
   assert.equal((await store.listContentVersions("video-a", "source-a")).length, 1);
+  const deleted = await store.deleteVideoTranscript("video-a", "source-a");
+  assert.deepEqual(deleted, {
+    sourceKey: "source-a",
+    videoId: "video-a",
+    deletedProcessingAttempts: 2,
+    deletedContentVersions: 1,
+  });
+  const clearedVideo = (await store.listSourceVideos("source-a"))[0];
+  assert.equal(clearedVideo.status, "needs-review");
+  assert.equal(clearedVideo.currentVersionId, null);
+  assert.deepEqual(clearedVideo.sourceStatements, []);
+  assert.deepEqual(await store.listProcessingAttempts("video-a", "source-a"), []);
+  assert.deepEqual(await store.listContentVersions("video-a", "source-a"), []);
+  assert.equal(await store.deleteVideoTranscript("video-a", "source-a"), null);
 });
 
 test("failure is persisted safely and a retry retains both attempts", async t => {

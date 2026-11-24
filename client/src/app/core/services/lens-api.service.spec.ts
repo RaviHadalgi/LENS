@@ -385,4 +385,19 @@ describe('LensApiService', () => {
       attemptId: 1, versionId: 1, claimCount: 2,
     });
   });
+
+  it('deletes every saved transcript version for a source video', () => {
+    service.deleteSourceVideoTranscript('source/a', 'video 1').subscribe((result) => {
+      expect(result.deletedContentVersions).toBe(2);
+    });
+
+    const request = httpMock.expectOne(
+      'http://localhost:3000/api/sources/source%2Fa/videos/video%201/transcript',
+    );
+    expect(request.request.method).toBe('DELETE');
+    request.flush({
+      status: 'deleted', sourceKey: 'source/a', videoId: 'video 1',
+      deletedProcessingAttempts: 3, deletedContentVersions: 2,
+    });
+  });
 });

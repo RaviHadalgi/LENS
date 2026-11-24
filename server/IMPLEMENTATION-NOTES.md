@@ -151,3 +151,16 @@ processed video. Long transcripts use a contained scroll area, timestamps are sh
 as readable ranges when present, and a newly submitted transcript appears immediately
 after processing. Verification includes all 36 server tests and all 42 client tests,
 plus the Angular production build.
+
+## Transcript management checkpoint — 24 November 2026
+
+Saved transcripts now sit behind a closed View transcript / summary accordion in the
+source inventory. The adjacent Modify action opens the existing transcript editor
+with the current text preloaded. Delete opens a separate confirmation dialog and calls
+`DELETE /api/sources/:sourceKey/videos/:videoId/transcript` only after confirmation.
+
+The deletion transaction removes every content version and processing attempt for the
+owned video, clears its current-version reference, and returns the retained video to
+`needs-review`. The source and video remain available for a replacement transcript.
+Verification includes all 36 server tests and all 44 client tests, plus an Angular
+production build within the configured component-style budget.

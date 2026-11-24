@@ -234,15 +234,6 @@
                     </button>
                   }
 
-                  @if (video.status === 'processed') {
-                    <button
-                      type="button"
-                      class="video-action video-action-primary"
-                      (click)="openVideoProcessing(video)"
-                    >
-                      Update transcript
-                    </button>
-                  }
                 </div>
 
                 @if (processingSummaries.get(video.videoId); as summary) {
@@ -257,37 +248,70 @@
 
                 @if (video.sourceStatements.length > 0) {
                   <section class="saved-transcript" aria-label="Saved transcript">
-                    <div class="saved-transcript-header">
-                      <div>
-                        <span class="saved-transcript-label">Saved transcript</span>
-                        <strong>
+                    <div class="saved-transcript-bar">
+                      <button
+                        type="button"
+                        class="saved-transcript-toggle"
+                        [attr.aria-expanded]="isTranscriptExpanded(video.videoId)"
+                        [attr.aria-controls]="'saved-transcript-' + video.videoId"
+                        (click)="toggleTranscript(video.videoId)"
+                      >
+                        <span
+                          class="saved-transcript-chevron"
+                          aria-hidden="true"
+                        >{{ isTranscriptExpanded(video.videoId) ? '⌄' : '›' }}</span>
+                        <span>
+                          <strong>View transcript / summary</strong>
+                          <small>
                           {{ video.sourceStatements.length }}
                           {{ video.sourceStatements.length === 1 ? 'statement' : 'statements' }}
-                        </strong>
-                      </div>
-
-                      @if (video.currentVersionId) {
-                        <span class="saved-transcript-version">
-                          Version {{ video.currentVersionId }}
+                            @if (video.currentVersionId) {
+                              · Version {{ video.currentVersionId }}
+                            }
+                          </small>
                         </span>
-                      }
+                      </button>
+
+                      <div class="source-video-actions">
+                        <button
+                          type="button"
+                          class="video-action video-action-secondary"
+                          [disabled]="updatingVideoIds.has(video.videoId)"
+                          (click)="openVideoProcessing(video)"
+                        >
+                          Modify
+                        </button>
+                        <button
+                          type="button"
+                          class="video-action video-action-secondary"
+                          [disabled]="updatingVideoIds.has(video.videoId)"
+                          (click)="openDeleteTranscriptConfirmation(video)"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
 
-                    <div class="saved-transcript-statements">
-                      @for (statement of video.sourceStatements; track $index) {
-                        <article class="saved-transcript-statement">
-                          @if (formatStatementTimestamp(statement); as timestamp) {
-                            <span class="statement-timestamp">{{ timestamp }}</span>
-                          }
+                    @if (isTranscriptExpanded(video.videoId)) {
+                      <div
+                        class="saved-transcript-statements"
+                        [id]="'saved-transcript-' + video.videoId"
+                      >
+                        @for (statement of video.sourceStatements; track $index) {
+                          <article class="saved-transcript-statement">
+                            @if (formatStatementTimestamp(statement); as timestamp) {
+                              <span class="statement-timestamp">{{ timestamp }}</span>
+                            }
 
-                          <p>{{ statement.text }}</p>
+                            <p>{{ statement.text }}</p>
 
-                          @if (formatStatementContext(statement); as context) {
-                            <small>{{ context }}</small>
-                          }
-                        </article>
-                      }
-                    </div>
+                            @if (formatStatementContext(statement); as context) {
+                              <small>{{ context }}</small>
+                            }
+                          </article>
+                        }
+                      </div>
+                    }
                   </section>
                 }
 
@@ -374,6 +398,47 @@
         (click)="confirmDeleteSource()"
       >
         Remove source
+      </app-lens-button>
+    </div>
+  </app-lens-modal>
+
+  <app-lens-modal
+    [open]="videoPendingTranscriptDeletion !== null"
+    title="Delete saved transcript?"
+    description="This permanently removes every saved transcript version and its processing history."
+    [closeOnBackdrop]="!deletingTranscript"
+    (closed)="cancelDeleteTranscript()"
+  >
+    @if (videoPendingTranscriptDeletion) {
+      <div class="delete-source-warning">
+        <strong>{{ videoPendingTranscriptDeletion.title || 'Untitled video' }}</strong>
+        <p>
+          The source and video will stay in your library. You can add a new transcript later.
+        </p>
+      </div>
+
+      @if (deleteTranscriptError) {
+        <p class="delete-source-error" role="alert">{{ deleteTranscriptError }}</p>
+      }
+    }
+
+    <div lens-modal-footer>
+      <app-lens-button
+        variant="secondary"
+        type="button"
+        [disabled]="deletingTranscript"
+        (click)="cancelDeleteTranscript()"
+      >
+        Cancel
+      </app-lens-button>
+
+      <app-lens-button
+        variant="danger"
+        type="button"
+        [loading]="deletingTranscript"
+        (click)="confirmDeleteTranscript()"
+      >
+        Delete transcript
       </app-lens-button>
     </div>
   </app-lens-modal>

@@ -370,43 +370,45 @@
   flex-basis: 100%;
   min-width: 0;
   margin-top: 14px;
-  padding: 14px;
+  overflow: hidden;
   border: 1px solid #dce4df;
   border-radius: 12px;
-  background: #f8fbf9;
 }
 
-.saved-transcript-header {
+.saved-transcript-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
 }
 
-.saved-transcript-label,
-.saved-transcript-header strong {
+.saved-transcript-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.saved-transcript-toggle strong,
+.saved-transcript-toggle small {
   display: block;
 }
 
-.saved-transcript-label {
-  color: #31704d;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.saved-transcript-header strong {
-  margin-top: 3px;
-  color: #24352b;
+.saved-transcript-toggle strong {
   font-size: 13px;
 }
 
-.saved-transcript-version {
-  flex-shrink: 0;
+.saved-transcript-toggle small {
   color: #65736a;
   font-size: 11px;
+}
+
+.saved-transcript-chevron {
+  font-size: 24px;
+  line-height: 1;
 }
 
 .saved-transcript-statements {
@@ -415,14 +417,14 @@
   flex-direction: column;
   gap: 9px;
   overflow-y: auto;
-  padding-right: 4px;
+  padding: 12px;
+  border-top: 1px solid #dce4df;
 }
 
 .saved-transcript-statement {
   padding: 11px 12px;
   border-radius: 9px;
   background: #ffffff;
-  box-shadow: 0 1px 3px rgb(23 32 42 / 5%);
 }
 
 .saved-transcript-statement p {
